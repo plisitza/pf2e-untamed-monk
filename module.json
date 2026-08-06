@@ -1,28 +1,31 @@
 {
-    "name": "pf2e-shapeshifting",
-    "title": "PF2e Shapeshifting",
-    "description": "Macros to help facilitate shapeshifting in PF2e",
-    "author": "drexl93",
-    "version": "6.0.9",
-    "minimumCoreVersion": "0.7.0",
-    "compatibleCoreVersion": "0.7.7",
-    "dependencies":[
-        {
-            "name":"furnace",
-            "manifest":"https://github.com/kakaroto/fvtt-module-furnace/releases/download/latest/module.json",
-            "type":"module"
-        }
+    "id": "pf2e-untamed-monk",
+    "title": "PF2e Untamed Monk — Shapeshifting Macros (Remaster)",
+    "description": "Macros for PF2e battle forms under the Remaster: untamed form and slot-cast form spells, with correct own-modifier substitution (including Dex-based unarmed attacks) and MAP-aware form strikes. Maintained fork of drexl93/pf2e-shapeshifting.",
+    "authors": [
+        { "name": "drexl93" },
+        { "name": "plisitza" }
     ],
+    "version": "7.0.0",
+    "compatibility": {
+        "minimum": "11",
+        "verified": "12"
+    },
+    "relationships": {
+        "systems": [
+            { "id": "pf2e", "type": "system", "compatibility": {} }
+        ]
+    },
     "packs": [
         {
-            "name": "PF2e Shapeshifting",
-            "label": "PF2e Shapeshifting",
-            "path": "packs/pf2e-shapeshifting.db",
-            "entity": "Macro",
-            "module": "pf2e-shapeshifting"
+            "name": "pf2e-untamed-monk",
+            "label": "Untamed Monk Macros",
+            "path": "packs/pf2e-untamed-monk",
+            "type": "Macro",
+            "system": "pf2e"
         }
     ],
-    "url": "https://github.com/drexl93/pf2e-shapeshifting",
-    "manifest": "https://raw.githubusercontent.com/drexl93/pf2e-shapeshifting/master/module.json",
-    "download": "https://github.com/drexl93/pf2e-shapeshifting/raw/master/pf2e-shapeshifting.zip"
+    "url": "https://github.com/plisitza/pf2e-untamed-monk",
+    "manifest": "https://raw.githubusercontent.com/plisitza/pf2e-untamed-monk/master/module.json",
+    "download": "https://github.com/plisitza/pf2e-untamed-monk/raw/master/pf2e-untamed-monk.zip"
 }

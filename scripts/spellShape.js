@@ -1061,7 +1061,7 @@ let bypassTo = "";
 let levelAttributes;
 
 // Get current tempHP and store it
-let tempHP = actor.data.data.attributes.hp.temp;
+let tempHP = actor.system.attributes.hp.temp;
 if (!tempHP) {
     tempHP = 0;
 }
@@ -1094,18 +1094,18 @@ function runDialog(dialog, height, width) {
 // Two sister functions to remove things like Athletics/Acrobatics bonuses, etc
 
 async function removeCustomMods() {
-    let customMods = Object.keys(actor.data.data.customModifiers)
+    let customMods = Object.keys(actor.system.customModifiers)
     for (let element of customMods) {
-        for (let mod of actor.data.data.customModifiers[element]) {
-            if (mod.name.includes("Spellform")) {
-                await removeMod(element, mod.name)
+        for (let mod of actor.system.customModifiers[element]) {
+            if ((mod.label ?? mod.name ?? "").includes("Spellform")) {
+                await removeMod(element, mod.slug ?? mod.name)
             }
         }
     }
 }
 
 async function removeMod(type, label) {
-    if (actor.data.data.customModifiers[type]) {
+    if (actor.system.customModifiers[type]) {
         await actor.removeCustomModifier(`${type}`, label);
     }
 }
@@ -1118,8 +1118,8 @@ async function reset(){
     // back to default image, if we changed it
     let img = actor.getFlag("world", "ss_origImg");
     if (img) {
-        await token.update({ img });
-        await actor.update({ "token.img" : img })
+        await token.document.update({ "texture.src": img });
+        await actor.update({ "prototypeToken.texture.src": img })
         await actor.unsetFlag("world", "ss_origImg")
     }
 
@@ -1127,9 +1127,9 @@ async function reset(){
     // preceding the next complete 'if' statement. This will ensure Small PCs revert to their 
     // correct size rather than becoming Medium.
     
-    // if (actor.data.data.traits.size.value == "med"){
+    // if (actor.system.traits.size.value == "med"){
     await setSize(1);
-    // } else if (actor.data.data.traits.size.value == "sm"){
+    // } else if (actor.system.traits.size.value == "sm"){
     //    setSize(0.5);
     // };
 
@@ -1142,12 +1142,8 @@ async function reset(){
     // in their name. We then simply update the actor with the filterOut array, returning them to
     // whatever resistances/vulnerabilities that were not given by transformation
 
-    let filterOut = actor.data.data.traits.dv.filter(element => 
-        !element.label.includes("Spellform"))
-    await actor.update({ "data.traits.dv" : filterOut });
-    filterOut = actor.data.data.traits.dr.filter(element => 
-        !element.label.includes("Spellform"))
-    await actor.update({ "data.traits.dr" : filterOut });
+    // Resistances/weaknesses now live on the form Effect item and are removed
+    // together with it in resetSenses() below.
 
     // reset Speeds and Senses to normal
     await resetSenses();
@@ -1171,52 +1167,71 @@ async function resetTempHP() {
     let didTempHPChange = await actor.getFlag("world", "ss_tempHPChanged")
     if (didTempHPChange === true) {
         await actor.unsetFlag("world", "ss_tempHPChanged")
-        await actor.update({ "data.attributes.hp.temp": 0 });
+        await actor.update({ "system.attributes.hp.temp": 0 });
     }  
 }
 
 // -------------------------------------------------------------------
 
+
+// -------------------------------------------------------------------
+
+// Map the form's sense entries to modern PF2e Sense rule elements
+
+function formSenseRules(senses) {
+    const senseMap = { lowLightVision: "low-light-vision", darkvision: "darkvision", scent: "scent", echolocation: "echolocation", tremorsense: "tremorsense", wavesense: "wavesense" };
+    return (senses ?? []).map(s => {
+        const rule = { key: "Sense", selector: senseMap[s.type] ?? s.type.replace(/([A-Z])/g, "-$1").toLowerCase(), force: true };
+        const range = parseInt(s.value);
+        if (!isNaN(range)) rule.range = range;
+        if ((s.label ?? "").toLowerCase().includes("imprecise")) rule.acuity = "imprecise";
+        return rule;
+    });
+}
+
 // Function to apply resistances and weaknesses if the form has them
 
 async function applyResistances(formData) {
+
+    // Modern PF2e character sheets no longer accept direct writes to senses or
+    // IWR (they are derived from rule elements). Instead we attach ONE temporary
+    // Effect item carrying Sense/Resistance/Weakness rule elements for the form.
+    // It is deleted automatically on revert. Rebuilding is idempotent, so this
+    // can safely be called again (e.g. after choosing a draconic resistance).
+    const rules = [];
+
+    const senses = (typeof levelAttributes !== "undefined" && levelAttributes?.senses) ? levelAttributes.senses : formData.senses;
+    rules.push(...formSenseRules(senses));
+
     if (formData.resistances) {
-        let resistances = formData.resistances;
-
-        // Iterate through the new form's resistances, and add each of them to the actor
-        for (let type in resistances) {
-            if (resistances.hasOwnProperty(type)) {
-                actor.data.data.traits.dr.push({
-                    type: type, 
-                    label: `Spellform ${type}`, 
-                    value: resistances[type], 
-                    exceptions: ""
-                })
-            }
+        for (let type in formData.resistances) {
+            rules.push({ key: "Resistance", type: type, value: Number(formData.resistances[type]) });
         }
-
-        // create a copy of the resistances array and set resistances to that, so
-        // it is preserved when game is reloaded (owing to pass by reference)
-        let newResistances = JSON.parse(JSON.stringify(actor.data.data.traits.dr))
-        await actor.update({ "data.traits.dr" : newResistances })
+    }
+    if (formData.weaknesses) {
+        for (let type in formData.weaknesses) {
+            rules.push({ key: "Weakness", type: type, value: Number(formData.weaknesses[type]) });
+        }
     }
 
-    // Same logic as above for weaknesses
-
-    if (formData.weaknesses) {
-        let weaknesses = formData.weaknesses;
-        for (let type in weaknesses) {
-            if (weaknesses.hasOwnProperty(type)) {
-                actor.data.data.traits.dv.push({
-                    type: type, 
-                    label: `Spellform ${type}`, 
-                    value: weaknesses[type], 
-                    exceptions: ""
-                })
+    const oldId = actor.getFlag("world", "ss_effectId");
+    if (oldId && actor.items.get(oldId)) {
+        await actor.deleteEmbeddedDocuments("Item", [oldId]);
+    }
+    if (rules.length) {
+        const effectSource = {
+            name: `Effect: ${formData.name} Form (Spell)`,
+            type: "effect",
+            img: "icons/magic/nature/wolf-paw-glow-green.webp",
+            system: {
+                description: { value: "<p>Senses, resistances, and weaknesses granted by the current form. Removed automatically on revert.</p>" },
+                duration: { value: -1, unit: "unlimited", sustained: false, expiry: null },
+                tokenIcon: { show: true },
+                rules: rules
             }
-        }
-        let newWeaknesses = JSON.parse(JSON.stringify(actor.data.data.traits.dv))
-        await actor.update({ "data.traits.dv" : newWeaknesses })
+        };
+        const [created] = await actor.createEmbeddedDocuments("Item", [effectSource]);
+        await actor.setFlag("world", "ss_effectId", created.id);
     }
 }
 
@@ -1227,8 +1242,9 @@ async function applyResistances(formData) {
 
 async function resetSpeeds() {
     let revert = actor.getFlag("world", "ss_origSpeeds")
-    await actor.update({ "data.attributes.speed" : revert})
-    await actor.unsetFlag("world", "ss_origSpeeds")
+    if (revert) {
+        await actor.update({ "system.attributes.speed.value": revert.value, "system.attributes.speed.otherSpeeds": revert.otherSpeeds ?? [] })
+    }
 }
 
 // -------------------------------------------------------------------
@@ -1237,9 +1253,12 @@ async function resetSpeeds() {
 // of transformation
 
 async function resetSenses() {
-    let revert = actor.getFlag("world", "ss_origSenses")
-    await actor.update({ "data.traits.senses" : revert})
-    await actor.unsetFlag("world", "ss_origSenses")
+    const effectId = actor.getFlag("world", "ss_effectId");
+    if (effectId && actor.items.get(effectId)) {
+        await actor.deleteEmbeddedDocuments("Item", [effectId]);
+    }
+    await actor.unsetFlag("world", "ss_effectId");
+    await actor.unsetFlag("world", "ss_origSenses");
 }
 
 // -------------------------------------------------------------------
@@ -1249,11 +1268,11 @@ async function resetSenses() {
 
 async function setSize(newSize){ 
     if (formData && formData.size) {
-        token.update({ width: formData.size, height: formData.size });
-        await actor.update({ "token.width": formData.size, "token.height": formData.size });
+        token.document.update({ width: formData.size, height: formData.size });
+        await actor.update({ "prototypeToken.width": formData.size, "prototypeToken.height": formData.size });
     } else {
-        token.update({ width: newSize, height: newSize });
-        await actor.update({ "token.width" : newSize, "token.height" : newSize})
+        token.document.update({ width: newSize, height: newSize });
+        await actor.update({ "prototypeToken.width" : newSize, "prototypeToken.height" : newSize})
     }
 };
 
@@ -1276,8 +1295,7 @@ async function skillBonus(levelSkills, baseSkills, formName) {
         // Earth/Water elementals get only a bonus to atheltics, Air/Fire only to acrobatics
         if (formName === "Earth" || formName === "Water") { skill = "athletics"; }
         else if (formName === "Air" || formName === "Fire") { skill = "acrobatics" }
-        let abbr = skillRefs[skill];
-
+        
         // The following two variables are used to keep track of what bonuses to look at or ignore
         // for transformation. For example, item bonuses/penalties should not be factored in when
         // calculating the actor's original scores (to determine whether the form or the actor has
@@ -1285,9 +1303,9 @@ async function skillBonus(levelSkills, baseSkills, formName) {
         let removedModsTotal = 0;
         let otherMods = 0;
         
-        baseSkills[abbr]._modifiers.forEach(modifier => {
+        baseSkills[skill].modifiers.forEach(modifier => {
             if (modifier.enabled === true) {
-                if (modifier.type === "item" || modifier.name === "PF2E.ArmorCheckPenalty") {
+                if (modifier.type === "item" || (modifier.slug === "armor-check-penalty" || modifier.label === "Armor Check Penalty")) {
                     removedModsTotal += (parseInt(modifier.modifier))
                 } else if (modifier.type === "circumstance" || modifier.type === "status" || modifier.type === "untyped") {
                     otherMods += (parseInt(modifier.modifier))
@@ -1296,7 +1314,7 @@ async function skillBonus(levelSkills, baseSkills, formName) {
         })
 
         // Calculate the actor's modifier, without item bonuses or penalties
-        origValue = baseSkills[abbr].value - removedModsTotal 
+        origValue = baseSkills[skill].mod - removedModsTotal 
 
         // Calculate what the form's modifier would be, taking into account status/circumstance/untyped
         // penalties currently affecting the actor
@@ -1326,14 +1344,10 @@ async function skillBonus(levelSkills, baseSkills, formName) {
 
 async function changeSpeeds() {
 
-    // if there are any changes to speed at this level of the spell, use those
-    if (levelAttributes.speed) {
-        actor.update({ "data.attributes.speed" : levelAttributes.speed })
-
-    // Otherwise use the form's base speeds    
-    } else {
-        actor.update({ "data.attributes.speed" : formData.speed })
-    }
+    // Level-specific speeds win over the form's base speeds. Only the writable
+    // fields are updated (modern schema rejects unknown keys like "special").
+    const s = (levelAttributes && levelAttributes.speed) ? levelAttributes.speed : formData.speed;
+    await actor.update({ "system.attributes.speed.value": s.value, "system.attributes.speed.otherSpeeds": s.otherSpeeds ?? [] })
 }
 
 // -------------------------------------------------------------------
@@ -1342,14 +1356,8 @@ async function changeSpeeds() {
 
 async function setSenses() {
 
-    // If there are any changes to senses at this LEVEL of the spell, use those
-    if (levelAttributes.senses) {
-        actor.update({ "data.traits.senses" : levelAttributes.senses })
-
-    // Otherwise use the form's base senses
-    } else {
-        actor.update({ "data.traits.senses" : formData.senses })
-    }
+    // Senses are carried on the form Effect item; rebuild it (idempotent)
+    await applyResistances(formData);
 }
 
 // -------------------------------------------------------------------
@@ -1433,20 +1441,20 @@ async function transform(actualForm, castingLevel, imgChange, className) {
         // If the FORM ITSELF provides any specific bonuses to skills, set those first. There are
         // currently no forms that do this, but this is for future proofing and custom forms
         if (formData.skills) {
-            skillBonus(formData.skills, actor.data.data.skills, formData.name)
+            skillBonus(formData.skills, actor.skills, formData.name)
         }
 
         await applyResistances(formData);
 
         // Apply any skill bonuses tied to the spell, rather than the specific form. This is
         // where the Athletics/Acrobatics bonuses you generally see in the spell descriptions
-        await skillBonus(levelAttributes.skills, actor.data.data.skills, formData.name);
+        await skillBonus(levelAttributes.skills, actor.skills, formData.name);
 
         // AC is specifically set in each spell's description, so apply a bonus to AC if normal
         // AC is lower than the form's value, or apply a penalty to AC if normal AC is higher
         // than form's value        
-        formValue = levelAttributes.ac + actor.data.data.details.level.value;
-        origValue = actor.data.data.attributes.ac.value;
+        formValue = levelAttributes.ac + actor.system.details.level.value;
+        origValue = actor.system.attributes.ac.value;
         const formACBonus = (formValue - origValue);
         await actor.addCustomModifier("ac", "Spellform AC", formACBonus, "untyped");
 
@@ -1457,19 +1465,25 @@ async function transform(actualForm, castingLevel, imgChange, className) {
         // them to calculate their unarmed attack modifier, remove the '//'s from 
         // before the following 4 lines:
 
-        // if ((actor.data.data.actions).find(action =>  action.name.includes("Handwraps of Mighty Blows") )) {
-        //     origValue = (actor.data.data.actions).find(action => action.name.includes("Handwraps of Mighty Blows")).totalModifier
+        // if ((actor.system.actions).find(action =>  action.name.includes("Handwraps of Mighty Blows") )) {
+        //     origValue = (actor.system.actions).find(action => action.name.includes("Handwraps of Mighty Blows")).totalModifier
         // } else {
-            origValue = ((actor.data.data.actions).find(action => action.name === "Fist")).totalModifier
+            origValue = ((actor.system.actions).find(action => action.name === "Fist")).totalModifier
         // }
 
-        // Set a flag to remember the actor's original senses for reset
-        origSenses = JSON.parse(JSON.stringify(actor.data.data.traits.senses));
-        await actor.setFlag("world", "ss_origSenses", origSenses);
+        // Slot-cast form spells: "if your unarmed attack modifier is higher, you can
+        // use it instead." Plain substitution, no +2 (that bonus belongs to untamed
+        // form / wild shape only), and a tie goes to the form.
+        formValue = levelAttributes.mod
+        if (formValue < origValue) {
+            levelAttributes.ownMod = origValue;
+            await actor.setFlag("world", "ss_levelAttributes", levelAttributes)
+        }
+
         await setSenses();
 
         // Set a flag to remember the actor's original speeds for reset
-        origSpeeds = JSON.parse(JSON.stringify(actor.data.data.attributes.speed));
+        origSpeeds = JSON.parse(JSON.stringify(actor.system.attributes.speed));
         await actor.setFlag("world", "ss_origSpeeds", origSpeeds);
         await changeSpeeds();
 
@@ -1477,13 +1491,13 @@ async function transform(actualForm, castingLevel, imgChange, className) {
         if (!tempHP || (tempHP < levelAttributes.temphp)) {
             await actor.setFlag("world", "ss_tempHPChanged", tempHP)
             let newTempHP = levelAttributes.temphp
-            await actor.update({ "data.attributes.hp.temp": newTempHP });
+            await actor.update({ "system.attributes.hp.temp": newTempHP });
         };
 
         // Change image. Make sure your images are labeled with the form name (w/ correct capitalization)
         // at the end of your token name.
         if (imgChange) {
-            let origImg = token.data.img;
+            let origImg = token.document.texture.src;
 
             // Store the original image's path in a flag
             await actor.setFlag("world", "ss_origImg", origImg)
@@ -1495,8 +1509,8 @@ async function transform(actualForm, castingLevel, imgChange, className) {
             // form name (e.g. Ape, Cat, etc) and then adding back the removed file extension at
             // the end
             let img = origImg.slice(0, extensionIndex) + (formData.name) + origImg.slice(extensionIndex);
-            await token.update({ img });
-            await actor.update({ "token.img" : img })
+            await token.document.update({ "texture.src": img });
+            await actor.update({ "prototypeToken.texture.src": img })
         }
 
         // Change size. If the specific form has a size entry, use that, otherwise use the 
@@ -1528,14 +1542,14 @@ if (!token) {
 }
 
 // Error: must be selecting a play character
-if (actor.data.type !== "character") {
+if (actor.type !== "character") {
     ui.notifications.error("Please select a player character token."); 
     return; 
 }
 
 // Error: if the actor transformed using Spell Shape, they should use that macro to revert back
 if (isWildShaped) {
-    ui.notifications.error("Please use the Wild Shape macro"); 
+    ui.notifications.error("Please use the Untamed Form macro"); 
     return;
 }
 

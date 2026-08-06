@@ -40,7 +40,7 @@ async function roll(){
     }
 
     let messageData = {
-        user: game.user._id,
+        user: game.user.id,
         speaker: {
             alias: actor.name + ` (${formData.name})`
         },
@@ -80,7 +80,7 @@ async function roll(){
             wsDamage = new Roll(primeDice + "+ @bonus", {bonus: levelAttributes.damage});
         }
         messageData = {
-            user: game.user._id,
+            user: game.user.id,
             speaker: {
                 alias: actor.name + ` (${formData.name})`
             },
@@ -99,7 +99,7 @@ async function roll(){
                 wsDamagePlus = new Roll(plusDamage.dice);
             }
             messageData = {
-                user: game.user._id,
+                user: game.user.id,
                 speaker: {
                     alias: actor.name + ` (${formData.name})`
                 },
@@ -196,6 +196,29 @@ let d = new Dialog({
                 }
                 roll();
                 this.execute()
+            }
+        }
+        ,
+        Stunning: {
+            icon: "<i class='fas fa-hand-rock'></i>",
+            label: "Stunning Blows",
+            callback: () => {
+                // Posts the Stunning Blows (monk) Fortitude prompt at the actor's live
+                // class DC. Preconditions (same target for both Flurry Strikes, at least
+                // one damaging hit, once per Flurry) are on the player.
+                const dc = actor.classDC?.dc?.value
+                        ?? actor.system?.attributes?.classDC?.value
+                        ?? null;
+                if (!dc) {
+                    ui.notifications.warn("No class DC found on this actor.");
+                    return;
+                }
+                ChatMessage.create({
+                    speaker: ChatMessage.getSpeaker({ actor }),
+                    content: `<strong>Stunning Blows</strong> — target of both Flurry strikes: `
+                        + `@Check[type:fortitude|dc:${dc}|traits:incapacitation]{Fortitude save} `
+                        + `or stunned 1 (stunned 3 on a critical failure). Incapacitation.`
+                });
             }
         }
     },

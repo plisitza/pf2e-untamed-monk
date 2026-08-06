@@ -1,114 +1,66 @@
-# Pathfinder 2E Shapeshifting Macros
+# PF2e Untamed Monk - Shapeshifting Macros (Remaster)
 
-## NO LONGER SUPPORTED: With Wild Shape now being a core part of the PF2e system, there's no need for these macros any longer! Yay! So I won't be updating them unless down the road something else comes up that I feel would improve on core functionality. For now - that's all folks!
+Foundry VTT macros for playing battle forms in Pathfinder Second Edition (Remaster): the untamed form focus spell and the slot-cast form spells (animal form, aerial form, and the rest), with an attack roller that applies the correct attack modifier under the substitution rules, including Dex-based (finesse) unarmed attacks.
 
-## NOTE: I strongly recommend returning to your normal shape at the end of a game session, just in case a Pathfinder 2E Game System update occurs that might change the data structures the macros use.
+This is a maintained fork of [drexl93/pf2e-shapeshifting](https://github.com/drexl93/pf2e-shapeshifting), which has been unsupported since 2020. Full credit to drexl93 for the original design and nearly all of the code. MIT licensed, as was the original.
 
+## Why this fork exists
 
+The PF2e system's built-in battle form effects construct every form strike Strength-keyed and compare "your own attack modifier" against that Strength-based number. No form spell attack in the game carries the finesse trait, so a character whose best unarmed attack is Dex-based (a monk with finesse fists, for example) can never reach their real modifier through the system implementation.
 
-These three macros are intended to simplify the lives of any Druids who need to Wild Shape, or any casters using the plethora of Form Spells available. They require The Furnace module to be enabled.
+These macros implement the other reading of "if your unarmed attack modifier is higher, you can use it instead": the modifier being compared and substituted is your best unarmed attack modifier as it appears on your sheet, Dex and all. If your table rules it that way, this is, as far as we know, the only tooling that supports it.
+
+## What you get
+
+Three macros in one compendium:
+
+- **Untamed Form** - transform via the untamed form order spell (the spell once known as wild shape). Feat-gated form list (Insect Shape, Soaring Shape, Ferocious Shape, Elemental Shape, Plant Shape, Dragon Shape, Monstrosity Shape, True Shapeshifter), automatic rank selection (Auto = half level rounded up), token size and image switching, temp HP, speeds, skill adjustments, AC, and the own-modifier substitution with its +2 status bonus when your unarmed attack modifier strictly exceeds the form's. Click again to revert.
+- **Spell Shape** - the same treatment for slot-cast form spells. You choose the spell and the rank you are casting at. Substitution here is plain (no +2), again only when your modifier is strictly higher.
+- **Shape Strike** - the attack roller for whichever form you are in. Choose the attack, then First / Second / Third+ buttons apply the multiple attack penalty (agile-aware). Includes a Stunning Blows button that posts the monk feat's Fortitude prompt at your live class DC.
+
+While transformed, use Shape Strike and only Shape Strike. The strikes on your character sheet are the system's battle form implementation and will roll different numbers.
 
 ## Installation
-Copy the following link into your Manifest URL bar in the Module Installation window of Foundry VTT: https://raw.githubusercontent.com/drexl93/pf2e-shapeshifting/master/module.json
 
-## Wild Shape Macro
-* Full support for all available forms accessible through Wild Shape
-* Pairs with the attack macro to roll with the correct level-scaled attack and damage bonuses
-* Token size automatically scaled; support for image switching in different forms (but can be disabled)
-* Easy reversion back to base form with two clicks
-* Level-scaled Temp HP and skill modifiers (Athletics/Acrobatics) are adjusted as well
-* Available forms are gated by Feats - including crossovers (such as the Phoenix being a Monstrosity Form but only unlocked if you also have Soaring Form)
-* Statistics such as Senses, Resistances, Weaknesses, and Speeds are loaded onto token for reference
-* Passive Feat bonuses (such as Ferocious Shape's +1 status bonuses to forms providing an Athletics bonus) are supported
-* Though technically not RAW, there is support to 'deheighten' Wild Shape
+Paste this manifest URL into Foundry's Install Module dialog:
 
-![Shapeshifting in Action](https://media.giphy.com/media/Rk97paAzUy9l0mrDFY/giphy.gif)
+    https://raw.githubusercontent.com/plisitza/pf2e-untamed-monk/master/module.json
 
-## Spell Shape Macro
-* Full support for all available forms accessible through the Form Spells
-* Very similar functionality to Wild Shape, without the Feat bonuses or restrictions
-* Also pairs with the attack macro, and scales according to the selected spell level
+Requires Foundry v11+ and the PF2e system. No other module dependencies (the original's Furnace requirement is gone; modern Foundry runs async macros natively).
 
-## Shape Strike Macro
-* Once transformed, offers a choice of the Form's attacks, using embedded data to roll correct level-scaled damage
-* Correctly represents Agile attacks and additional damage dice
-* Indicates but does not roll Persistent Damage, as Persistent Damage does not happen immediately
-* Uses correct attack modifier, including Wild Shape rules for bonuses using your own modifier rather than the Form's.
-* **Note**: does not take into account Conditions like Frightened or Sickened which temporarily reduce attack bonuses
+Open the "Untamed Monk Macros" compendium and drag the macros to your hotbar.
 
----
+## Changes from upstream (v7.0.0)
 
-### Known Issues
-* The Fire Elemental's weakness to water shows up as Undefined (5), because Water weakness is not supported on the current PF2e sheet
+- Remaster terminology throughout. Actors with the legacy "Wild Shape" feat still work; the feat gate accepts both eras' names. All other shape feat names are unchanged in the Remaster.
+- Data paths modernized for Foundry v11/v12: actor.system, prototypeToken, texture.src, game.user.id, actor.items.contents, and the Statistic API for skills.
+- Senses, resistances, and weaknesses are now delivered through a single temporary Effect item carrying Sense / Resistance / Weakness rule elements, created on transform and deleted on revert. Modern character sheets do not accept direct writes to those fields; this also means the changes show up as a visible effect icon.
+- Spell Shape now implements own-modifier substitution for slot-cast form spells (strictly higher, no +2). Upstream computed the comparison value but never applied it.
+- Shape Strike gains the Stunning Blows button.
+- Compendium rebuilt as a LevelDB pack (NeDB support ended with Foundry v11). JSON sources live in packs-source/ and the pack is compiled by the build script.
 
-### Token Image Change Feature
-* If you would like to use the Token Image Change feature, make sure the token has the exact name of the form appended to the end of the name of your token.
-* **Original images and Form images must be of the same file type** (e.g. both must be PNG, or both must be JPG, etc)
-* For example, if your token is "Bob.png", to set up tokens for the Animal Form spell you would label them as "BobCat.png", "BobBull.png", etc. The full list of the forms and their names are at the start of the macro for reference.
-* If you would like to disable the Token Image Change feature for Wild Shape, find the commented out section beginning with "// Change image" in the wildShape macro. Comment out just that section (until before "// Change size") by adding "//" before each of those lines.
+## Rule interpretations
 
----
+The original's documented stances are retained: the substitution comparison ignores item bonuses (the conservative reading; a commented block in the code lets you count Handwraps of Mighty Blows if your table rules otherwise), striking runes do not modify form damage dice, form temp HP replaces existing temp HP, and item bonuses / armor check penalty do not apply to skills while transformed.
 
-## Rule Interpretations
-As anyone who has played a Wild Shape druid knows, the rules text around transformation can be interpreted in different ways. Pending a clearer explanation from Paizo on the subjects below, the macro supports the following logic. I have provided citations where I could, but this *is* an interpretation. I have documented them here so you are aware of them and can account for them if the interpretation is different at your table.
+Added stances in this fork, both ties-to-the-form:
 
-### Wild Shape Unarmed Attack bonus
-> "If your unarmed attack bonus is higher, you can use it instead."
+- Untamed form: "when you choose to use your own attack modifier ... you gain a +2 status bonus" applies only when your own unarmed attack modifier strictly exceeds the form's.
+- Slot-cast form spells: "if your unarmed attack bonus is higher, you can use it instead" is plain substitution, no bonus, again strictly higher.
 
-Animal Form https://2e.aonprd.com/Spells.aspx?ID=10
+## Known limitations
 
-> "When you choose to use your own attack modifier while polymorphed instead of the form's default attack modifier, you gain a +2 status bonus to your attack rolls."
+- Shape Strike does not read conditions (frightened, sickened, and so on); adjust manually, as with the original.
+- Humanoid form / Anthropomorphic Shape are not supported (no data for them, upstream or here).
+- Revert before ending a session. If a system update changes data structures while you are transformed, the stored originals may not restore cleanly. This was the original author's advice and it stands.
 
-Wild Shape https://2e.aonprd.com/Spells.aspx?ID=481
+## Building from source
 
-* Your unarmed attack bonus MUST exceed the form's attack bonus before you can benefit from the +2 status bonus.  
-* Forms are unable to benefit from item bonuses, however it is unclear whether you factor in your item bonus from Handwraps of Mighty Blows when determining whether you have a higher unarmed attack bonus than your form's attack bonus. I have elected in this macro to take the more conservative route, not counting item bonuses when making the comparison. *However* I have included code in the macro that will allow you to use your Handwraps of Mighty Blows modifier if that is how you run it in your game. Search for "Handwraps" in the code and follow the instructions there.
+    npm install
+    npm run release
 
-### Wild Shape Damage and Striking Runes
-> "If you take on a battle form with a polymorph spell, the special statistics can be adjusted only by circumstance bonuses, status bonuses, and penalties."
+This compiles packs-source/ into the LevelDB pack and produces pf2e-untamed-monk.zip. The three macro sources are also mirrored as plain files in scripts/ for reading and for pasting directly into world macros.
 
-Polymorph Trait https://2e.aonprd.com/Traits.aspx?ID=127
-> "A striking rune stores destructive magic in the weapon, increasing the weapon damage dice it deals..."
+## Credits
 
-Striking Runes https://pf2.easytool.es/index.php?id=2918&name=striking
-
-* Striking runes are not circumstance or status bonuses, they directly increase the damage die of weapons they are etched on to. For this reason they will not modify the strikes provided by a form, which are essentially new "weapons" with their own damage dice that the form gives you access to.
-
-### Temp HP
-> "You can have temporary Hit Points from only one source at a time. If you gain temporary Hit Points when you already have some, choose whether to keep the amount you already have and their corresponding duration or to gain the new temporary Hit Points and their duration."
-
-Temporary Hit Points https://pf2.easytool.es/index.php?id=5819&name=Temporary_Hit_Points
-
-* So if you had a lower amount of temp HP before transformation, it will be replaced by the form's temp HP, which will all disappear when you revert (when you accept temp HP, you accept their duration as well).  
-* If you gain a higher amount of temp HP *while transformed*, it will be reduced to 0 upon reversion so you will need to adjust it manually.
-
-### Resistances
-> "Whenever you’re polymorphed into **another** form using wild shape, you gain resistance 5 to fire." 
-
-Emphasis mine, Elemental Shape (language identical in Plant Shape, Dragon Shape) https://2e.aonprd.com/Feats.aspx?ID=335
-
-* You do not gain those resistances while in a shape that that specific feat gave you access to. For example, you do not gain a resistance 5 to fire as an Earth or Air Elemental (Fire/Water Elementals are resistant to fire because it is specifically indicated in their stats). However you would gain fire resistance 5 while being an Ape, or a Bird, or a Dragon.
-
-### Skills
-> "If you take on a battle form with a polymorph spell, the special statistics can be adjusted only by circumstance bonuses, status bonuses, and penalties."  
-
-Polymorph Trait https://2e.aonprd.com/Traits.aspx?ID=127
-> "(Skill) modifier of +(x), unless your own modifier is higher."  
-
-Rules text from Form spells e.g. https://2e.aonprd.com/Spells.aspx?ID=10
-
-* You cannot be affected by item bonuses, penalties, or the untyped Armour Check Penalty while transformed. A counterbalancing modifier named "WSForm Balancer" or "Spellform Balancer" is added to the appropriate skills to counterbalance any outstanding item bonuses/penalties or the ACP.
-
-### Changelog v. 6.0.8:
-* Modified a few rule interpretations and developed more extensive documentation on them (see above)
-* Better commenting throughout
-* Armour Check Penalty and Item Bonuses/Penalties will no longer apply while transformed (this is what the 'Balancer' Custom Modifier accounts for
-
----
-
-### Endnotes
-I welcome any and all feedback you have about these macros! The best way to get in touch with me is via Discord (Some Knucklehead#4725).
-
-I only started learning javascript over the past few months, and entirely so that I could tinker around with Foundry. An experienced developer would likely have a heart-attack seeing my code, for which I apologize.
-
-It will be an ongoing project to streamline the code and make it more efficient. This is my first complex macro, and it kept getting bigger the more I worked on it, so I apologize for both its size and any unforseen bugs. I will do my best to help you work through any problems you find, but please note: **I always recommend backing up your characters regularly, and especially before using macros like these. I am not responsible for any loss or alteration of character data.**
+Original module and design: drexl93 (Some Knucklehead#4725). Fork maintenance: plisitza. License: MIT.
