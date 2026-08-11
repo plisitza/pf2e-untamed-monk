@@ -1,1 +1,5 @@
 node_modules/
+/pf2e-untamed-monk
+packs/**/LOG
+packs/**/LOG.old
+packs/**/LOCK
