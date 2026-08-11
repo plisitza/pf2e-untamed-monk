@@ -1398,7 +1398,14 @@ async function chooseForm(spellName, className) {
     <select name="level" id="level">`
     for (let scalingArray in scalingAttributes) {
         if (scalingArray === className) {
-            (scalingAttributes[scalingArray]).forEach(level => {
+            /* v7.0.1: render ranks highest-first so the browser's default selection (the
+               first option) is the strongest rank this spell offers. No actor state is
+               read here on purpose - gating the list to ranks the caster has slots for
+               is a v8 item, designed together with gating to spells actually known.
+               Copy before reversing: Array.reverse() mutates in place and
+               scalingAttributes is shared data that other code reads in its own order. */
+            const ranks = [...scalingAttributes[scalingArray]].reverse();
+            ranks.forEach(level => {
                 content2 += `<option value="${level.level}">${level.level}</option>`
             })
         }

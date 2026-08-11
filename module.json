@@ -6,7 +6,7 @@
         { "name": "drexl93" },
         { "name": "plisitza" }
     ],
-    "version": "7.0.0",
+    "version": "7.0.1",
     "compatibility": {
         "minimum": "11",
         "verified": "14"

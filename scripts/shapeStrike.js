@@ -21,6 +21,11 @@ if (!levelAttributes) {
     levelAttributes = actor.getFlag("world", "ss_levelAttributes");
 }
 let attack;
+// v7.0.1: per-form memory of the last attack rolled, e.g. {Cat: "Jaws", Bear: "Claw"}.
+// Its own sk_ prefix rather than ws_/ss_ because it belongs to Shape Strike, is written
+// whichever transformer set the form, and must NOT be swept by either transformer's
+// reset() - surviving a revert is the entire point of the feature.
+let lastAttacks = actor.getFlag("world", "sk_lastAttacks") ?? {};
 
 // -------------------------------------------------------------------
 // DECLARE FUNCTIONS
@@ -111,6 +116,14 @@ async function roll(){
     };
 }
 
+// v7.0.1: persist the chosen attack, keyed by form name. MUST be awaited before
+// this.execute() re-runs the macro, or the reopened dialog reads the flag before the
+// write lands and the memory silently appears not to work.
+async function rememberAttack() {
+    if (!formData?.name || !selectedStrike) return;
+    await actor.setFlag("world", "sk_lastAttacks", {...lastAttacks, [formData.name]: selectedStrike});
+}
+
 // --------------------------------------------------------------------------
 // CODE
 //
@@ -137,12 +150,24 @@ if (levelAttributes.ownMod) {
 content += `<div style="text-align: center"><label for="attack">Choose your attack: </label>
 <div style="display: inline-block; padding: 0 8px"><select name="attack" id="attack">`
 let formAttacks = Object.keys(formData.attacks)
+// v7.0.1: preselect the attack last rolled in THIS form. Because the memory is a per-form
+// map, Jaws-on-Cat never preselects Jaws-on-Bear. A remembered name that is absent from
+// this form's attack list simply matches no option, so the browser falls back to the
+// first one - silently, with no throw and no warning. That fallback is required
+// behaviour, not an accident: forms do not share an attack vocabulary.
+let rememberedAttack = lastAttacks?.[formData.name];
 for (let i=0; i<formAttacks.length; i++) {
-    content += `<option value="${formAttacks[i]}">${formAttacks[i]}`
+    let selectedAttr = formAttacks[i] === rememberedAttack ? " selected" : "";
+    content += `<option value="${formAttacks[i]}"${selectedAttr}>${formAttacks[i]}`
     if (formData.attacks[formAttacks[i]].traits) {
         let traitString = formData.attacks[formAttacks[i]].traits.toString();
         let spacedTraitString = traitString.replace(/,/g, ", ")
         content += ` (${spacedTraitString})</option>`
+    } else {
+        // v7.0.1: close the tag on traitless attacks too. Previously </option> was emitted
+        // only inside the traits branch; browsers repaired it, which is why it was never
+        // seen, but an unclosed tag now also carries a `selected` attribute.
+        content += `</option>`
     }
 };
 
@@ -158,19 +183,20 @@ let d = new Dialog({
         First: {
             icon: "<i class='fas fa-caret-square-right'></i>",
             label: "First",
-            callback: (html) => { 
+            callback: async (html) => { 
                 // selectedStrike is the attack picked in the dropdown menu, matched to its details in the embedded formData array
                 selectedStrike = html.find("#attack")[0].value; 
                 attack = formData.attacks[selectedStrike]
                 wsAttack = new Roll("1d20 + @mod", {mod: mod});
                 roll();
+                await rememberAttack();
                 this.execute()
             },
         },
         Second: {
             icon: "<i class='far fa-caret-square-right'></i>",
             label: "Second",
-            callback: (html) => {
+            callback: async (html) => {
                 selectedStrike = html.find("#attack")[0].value; 
                 attack = formData.attacks[selectedStrike]
                 if (attack.traits?.includes("Agile")) {
@@ -180,13 +206,14 @@ let d = new Dialog({
                     wsAttack = new Roll("1d20 + @mod + @pen", {mod: mod, pen: -5});
                 }
                 roll();
+                await rememberAttack();
                 this.execute()
             },
         },
         Third: {
             icon: "<i class='fas fa-caret-right'></i>",
             label: "Third+",
-            callback: (html) => {
+            callback: async (html) => {
                 selectedStrike = html.find("#attack")[0].value; 
                 attack = formData.attacks[selectedStrike]
                 if (attack.traits?.includes("Agile")) {
@@ -195,6 +222,7 @@ let d = new Dialog({
                     wsAttack = new Roll("1d20 + @mod + @pen", {mod: mod, pen: -10});
                 }
                 roll();
+                await rememberAttack();
                 this.execute()
             }
         }
