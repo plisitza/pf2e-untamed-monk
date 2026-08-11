@@ -670,7 +670,6 @@ let height = 1;
 // For stats adjustments
 let formValue = 0;
 let origValue = 0;
-let origSpeeds = {};
 let origSenses = [];
 let levelAttributes;
 
@@ -738,15 +737,6 @@ async function reset(){
         await actor.unsetFlag("world", "ws_origImg")
     }
 
-    // The following resets the token size. If you use small-size tokens in your game, delete the 
-    // '//'s preceding the next complete 'if' statement. This will ensure Small PCs revert to their 
-    // correct size rather than becoming Medium.
-    
-    // if (actor.system.traits.size.value === "med"){
-    await setSize(1);
-    // } else if (actor.system.traits.size.value === "sm"){
-    //    await setSize(0.5);
-    // };
 
     // Remove all form data that we had attached to the actor
     await actor.unsetFlag("world", "ws_formData")
@@ -828,6 +818,50 @@ async function featCheck(formData, formType){
 
 // Map the form's sense entries to modern PF2e Sense rule elements
 
+// Map the module's grid-square size numbers onto pf2e's size keys, and emit a
+// CreatureSize rule element.
+//
+// Writing token width/height directly does NOT work on pf2e 8.x: the system derives
+// token dimensions from the actor's size trait and re-syncs them on the next data
+// preparation pass, so a manual write visibly applies and is then reverted a frame
+// later. Size has to be granted the same way senses and speeds are - as a rule element
+// on the form Effect item. That also means the actor's natural size returns on revert,
+// which correctly handles Small PCs without the hand-edited special case the old
+// reset() required.
+const FORM_SIZE_BY_GRID = { 0.25: "tiny", 0.5: "sm", 1: "med", 2: "lg", 3: "huge", 4: "grg" };
+
+function formSizeRule(gridSize) {
+    const value = FORM_SIZE_BY_GRID[gridSize];
+    return value ? [{ key: "CreatureSize", value }] : [];
+}
+
+// Map the form's speed entry to BaseSpeed rule elements.
+//
+// pf2e 8.x derives movement entirely: there is no `system.attributes.speed`, and
+// `actor._source.system.movement` is null, so speeds CANNOT be written onto the actor
+// by any update() path. They have to be granted the same way senses are - as rule
+// elements on the temporary form Effect item. A useful consequence: they are removed
+// for free when that item is deleted on revert, so no save/restore snapshot is needed.
+//
+// Selectors are pf2e's MOVEMENT_TYPES: land, burrow, climb, fly, swim. The rule element
+// strips a trailing "-speed" itself but does not lowercase, so normalise here.
+function formSpeedRules(speed) {
+    if (!speed) return [];
+    const rules = [];
+    const land = Number(speed.value);
+    if (Number.isFinite(land) && land > 0) {
+        rules.push({ key: "BaseSpeed", selector: "land", value: land });
+    }
+    for (const other of (speed.otherSpeeds ?? [])) {
+        const selector = String(other.type ?? "").trim().replace(/-speed$/, "").toLowerCase();
+        const value = Number(other.value);   // form data stores these as strings, e.g. "20"
+        if (selector && Number.isFinite(value) && value > 0) {
+            rules.push({ key: "BaseSpeed", selector, value });
+        }
+    }
+    return rules;
+}
+
 function formSenseRules(senses) {
     const senseMap = { lowLightVision: "low-light-vision", darkvision: "darkvision", scent: "scent", echolocation: "echolocation", tremorsense: "tremorsense", wavesense: "wavesense" };
     return (senses ?? []).map(s => {
@@ -853,6 +887,16 @@ async function applyResistances(formData) {
     const senses = (typeof levelAttributes !== "undefined" && levelAttributes?.senses) ? levelAttributes.senses : formData.senses;
     rules.push(...formSenseRules(senses));
 
+    // levelAttributes wins over the base form entry when it carries a speed,
+    // preserving the precedence the old speed-writing path used.
+    const formSpeed = (typeof levelAttributes !== "undefined" && levelAttributes?.speed) ? levelAttributes.speed : formData.speed;
+    rules.push(...formSpeedRules(formSpeed));
+
+    // Same precedence the old size call site used: the specific form's size wins,
+    // otherwise the size for this spell rank.
+    const formGridSize = formData.size ?? ((typeof levelAttributes !== "undefined") ? levelAttributes?.size : undefined);
+    rules.push(...formSizeRule(formGridSize));
+
     if (formData.resistances) {
         for (let type in formData.resistances) {
             rules.push({ key: "Resistance", type: type, value: Number(formData.resistances[type]) });
@@ -874,7 +918,7 @@ async function applyResistances(formData) {
             type: "effect",
             img: "icons/magic/nature/wolf-paw-glow-green.webp",
             system: {
-                description: { value: "<p>Senses, resistances, and weaknesses granted by the current form. Removed automatically on revert.</p>" },
+                description: { value: "<p>Senses, speeds, resistances, and weaknesses granted by the current form. Removed automatically on revert.</p>" },
                 duration: { value: -1, unit: "unlimited", sustained: false, expiry: null },
                 tokenIcon: { show: true },
                 rules: rules
@@ -891,9 +935,11 @@ async function applyResistances(formData) {
 // of transformation
 
 async function resetSpeeds() {
-    let revert = actor.getFlag("world", "ws_origSpeeds")
-    if (revert) {
-        await actor.update({ "system.attributes.speed.value": revert.value, "system.attributes.speed.otherSpeeds": revert.otherSpeeds ?? [] })
+    // Speeds ride on the form Effect item as BaseSpeed rule elements now, so they
+    // disappear when that item is deleted in resetSenses(). Nothing to restore here.
+    // Clear any ws_origSpeeds flag left behind by an older version of this module.
+    if (actor.getFlag("world", "ws_origSpeeds") !== undefined) {
+        await actor.unsetFlag("world", "ws_origSpeeds");
     }
 }
 
@@ -913,18 +959,6 @@ async function resetSenses() {
 
 // -------------------------------------------------------------------
 
-// Function to scale up token depending on the size of the new form, OR depending on the
-// parameter passed into the function
-
-async function setSize(newSize){ 
-    if (formData?.size) {
-        token.document.update({ width: formData.size, height: formData.size });
-        await actor.update({ "prototypeToken.width": formData.size, "prototypeToken.height": formData.size });
-    } else {
-        token.document.update({ width: newSize, height: newSize });
-        await actor.update({ "prototypeToken.width" : newSize, "prototypeToken.height" : newSize})
-    }
-};
 
 // -------------------------------------------------------------------
 
@@ -1046,25 +1080,9 @@ async function dragonResistance() {
 
 // -------------------------------------------------------------------
 
-// Function to change the token's speeds to the form's
-
-async function changeSpeeds() {
-
-    // Level-specific speeds win over the form's base speeds. Only the writable
-    // fields are updated (modern schema rejects unknown keys like "special").
-    const s = (levelAttributes && levelAttributes.speed) ? levelAttributes.speed : formData.speed;
-    await actor.update({ "system.attributes.speed.value": s.value, "system.attributes.speed.otherSpeeds": s.otherSpeeds ?? [] })
-}
 
 // -------------------------------------------------------------------
 
-// Function to change the token's senses to the form's
-
-async function setSenses() {
-
-    // Senses are carried on the form Effect item; rebuild it (idempotent)
-    await applyResistances(formData);
-}
 
 // -------------------------------------------------------------------
 
@@ -1151,6 +1169,11 @@ async function transform(html) {
             }
 
             await featCheck(formData, formType);
+            // Builds the form Effect item ONCE. It previously ran a second time via setSenses(),
+            // which deleted and recreated the item - harmless when senses were its only payload,
+            // but visible as a grow/shrink/grow flicker once CreatureSize and BaseSpeed moved onto
+            // it. The dragon-resistance picker still rebuilds it deliberately, which is correct:
+            // its rules genuinely change.
             await applyResistances(formData)
 
             // Apply any skill bonuses tied to the spell, rather than the specific form. This is
@@ -1165,18 +1188,9 @@ async function transform(html) {
             const formACBonus = (formValue - origValue);
             await actor.addCustomModifier("ac", "WSForm AC", formACBonus, "untyped");
 
-            // Compare whether the actor's Fist attack has a higher modifier than the form's attack
-            // modifier. If this is case, they may use their Fist modifier.
-            
-            // If the actor has Handwraps of Mighty Blows, and you would like to be able to use
-            // them to calculate their unarmed attack modifier, remove the '//'s from 
-            // before the following 4 lines:
-
-            // if ((actor.system.actions).find(action =>  action.name.includes("Handwraps of Mighty Blows") )) {
-            //     origValue = (actor.system.actions).find(action => action.name.includes("Handwraps of Mighty Blows")).totalModifier
-            // } else {
-                origValue = ((actor.system.actions).find(action => action.name === "Fist")).totalModifier
-            // }
+            // Compare whether the actor's best unarmed attack has a higher modifier than the
+            // form's attack modifier. If it does, they may use their own modifier.
+            origValue = /* pf2e 8.x has no action.name on strikes (slug/label now); resolve the best unarmed strike by item category. NOTE: potency reaches the roll via totalModifier and striking is excluded because damage dice come from formData - both are load-bearing table rulings, do not "simplify" either away. */ (() => { const u = (actor.system.actions ?? []).filter(a => a.item?.system?.category === "unarmed"); if (!u.length) ui.notifications.warn("No unarmed strike found; using the form's attack modifier."); return u.length ? Math.max(...u.map(a => a.totalModifier)) : Number.NEGATIVE_INFINITY; })()
 
             // If the actor is using their own unarmed attack modifier instead of the form's, they
             // get a +2 status bonus to their modifier
@@ -1186,12 +1200,7 @@ async function transform(html) {
                 await actor.setFlag("world", "ws_levelAttributes", levelAttributes)
             }
 
-            await setSenses();
 
-            // Set a flag to remember the actor's original speeds for reset
-            origSpeeds = JSON.parse(JSON.stringify(actor.system.attributes.speed));
-            await actor.setFlag("world", "ws_origSpeeds", origSpeeds);
-            await changeSpeeds();
 
             // Add temp HP, if Form Temp HP value is greater than the actor's current temp HP
             if (tempHP < levelAttributes.temphp) {
@@ -1200,32 +1209,24 @@ async function transform(html) {
                 await actor.update({ "system.attributes.hp.temp": newTempHP });
             };
 
-            // Change image. Make sure your images are labeled with the form name (w/ correct capitalization)
-            // at the end of your token name.
-            let origImg = token.document.texture.src;
-
-            // Store the original image's path in a flag
-            await actor.setFlag("world", "ws_origImg", origImg)
-
-            // Find the last '.' in the file name, which should indicate where the file extension begins
-            let extensionIndex = (origImg.lastIndexOf('.') - origImg.length)
-
-            // Create the new image name (of the form) by removing the file extension, adding the
-            // form name (e.g. Ape, Cat, etc) and then adding back the removed file extension at
-            // the end
-            let img = origImg.slice(0, extensionIndex) + (formData.name) + origImg.slice(extensionIndex);
-            await token.document.update({ "texture.src": img });
-            await actor.update({ "prototypeToken.texture.src": img })
-
-            // Change size. If the specific form has a size entry, use that, otherwise use the 
-            // size appropriate for the level of that spell. See Nature Incarnate for an example 
-            // where one spell has forms with different sizes (Green Man is Medium, Kaiju is 
-            // Gargantuan)
-            if (formData.size) {
-                await setSize(formData.size);
-            } else {
-                await setSize(levelAttributes.size);
+            // Change image. Images must be named with the form name appended before the extension
+            // (e.g. "Gnome Phil.png" -> "Gnome PhilCat.png"). If no such file exists the token is
+            // left alone, per the acceptance criteria. The old code assigned the path blind, which
+            // left every actor without bespoke per-form art pointing at a 404.
+            const origImg = token.document.texture.src;
+            const extensionIndex = (origImg.lastIndexOf(".") - origImg.length);
+            const formImg = origImg.slice(0, extensionIndex) + (formData.name) + origImg.slice(extensionIndex);
+            
+            // srcExists moved under foundry.canvas in v13; the bare global still resolves but is
+            // deprecated and is removed in v15. Prefer the namespaced one, fall back for older cores.
+            const srcExistsFn = foundry?.canvas?.srcExists ?? (typeof srcExists === "function" ? srcExists : null);
+            const formImgExists = srcExistsFn ? await srcExistsFn(formImg) : false;
+            if (formImgExists) {
+                await actor.setFlag("world", "ws_origImg", origImg);
+                await token.document.update({ "texture.src": formImg });
+                await actor.update({ "prototypeToken.texture.src": formImg });
             }
+
 
         } else {
             ui.notifications.error("Please return to normal form before transforming again."); 
