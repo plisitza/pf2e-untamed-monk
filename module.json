@@ -10,7 +10,7 @@
             "name": "plisitza"
         }
     ],
-    "version": "8.0.0-dev.1",
+    "version": "8.0.0",
     "esmodules": [
         "scripts/untamed-monk.mjs"
     ],
@@ -23,7 +23,9 @@
             {
                 "id": "pf2e",
                 "type": "system",
-                "compatibility": {}
+                "compatibility": {
+                    "minimum": "8.4.0"
+                }
             }
         ]
     },
