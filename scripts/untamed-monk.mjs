@@ -5,11 +5,10 @@
  * WHAT THIS FILE EXISTS FOR
  * The PF2e system implements battle forms natively and, as of pf2e 8.4.0, already delivers
  * almost everything this module would otherwise have to do: form statistics and scaling,
- * senses, speeds, size,
- * temp HP, handwrap potency riding the substituted modifier while striking correctly does
- * not, ghost touch, Metal Strikes, the untamed form +2 status bonus with its
- * `battle-form:own-attack-modifier` roll option, and sneak attack's qualification gate
- * (which tags an agile or finesse form strike and correctly refuses jaws).
+ * senses, speeds, size, temp HP, handwrap potency riding the substituted modifier while
+ * striking correctly does not, ghost touch, Metal Strikes, the untamed form +2 status bonus
+ * with its `battle-form:own-attack-modifier` roll option, and sneak attack's qualification
+ * gate, which tags an agile or finesse form strike and correctly refuses jaws.
  *
  * Two things it does not do. This module supplies both by rewriting a battle form effect's
  * source as it lands on the actor. The two are gated INDEPENDENTLY - an actor can qualify
@@ -33,7 +32,7 @@
  *
  * No rule element can rewrite another item's rule elements, hence a hook. Rewriting rather
  * than shipping forked copies of the form effects is deliberate: Paizo's data keeps arriving
- * through system updates, and a fork would freeze us out of their errata.
+ * through system updates, and a fork would freeze this module out of their errata.
  */
 
 const MODULE_ID = "pf2e-untamed-monk";
@@ -92,9 +91,9 @@ const SNEAK_ITEMS = new Set(["sneak-attack", "sneak-attacker", "shadow-sneak-att
  * DO NOT gate this on `actor.flags.system.sneakAttackDamage`. Those flags are DERIVED - the
  * rogue class writes them with ActiveEffectLike during data preparation - and inside a
  * document-creation transaction the actor can be reset and re-prepared, so at preCreateItem
- * time they are not reliably present. Observed in testing: the flags read
- * {number: 1, faces: 6} on a settled actor, while this hook read the same path as undefined
- * moments earlier in the same transaction and silently skipped the injection.
+ * time they are not reliably present. Observed in testing: the flags read {number: 1,
+ * faces: 6} on a settled actor, while this hook read the same path as undefined moments
+ * earlier in the same transaction and silently skipped the injection.
  *
  * Item presence is source data and is always there. The flags are still what supply the dice,
  * but they are resolved at damage-roll time, long after preparation has settled.
@@ -119,7 +118,7 @@ Hooks.on("preCreateItem", (item) => {
         const actor = item?.parent;
         if (actor?.documentName !== "Actor") return;
 
-        // Read _source, not the prepared document: we are editing what is about to be written.
+        // Read _source, not the prepared document: this edits what is about to be written.
         const rules = item._source?.system?.rules;
         if (!Array.isArray(rules) || !rules.some((r) => r?.key === "BattleForm")) return;
 

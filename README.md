@@ -22,21 +22,19 @@ Gated only on the actor having sneak attack - the class feature, Sneak Attacker,
 
 ## What the system already does, and this module does not touch
 
-Verified empirically on PF2e 8.4.0 rather than assumed:
+All of the following is the PF2e system's own work. This module does not implement, override or interfere with any of it. Each was confirmed by observation on PF2e 8.4.0 rather than taken from documentation.
 
-| Behaviour | Handled by |
-| --- | --- |
-| Form statistics, scaling by rank, AC, skills, temp HP | System |
-| Senses, speeds, creature size | System |
-| Speed stacking (Incredible Movement +10 on a 40 ft form gives 50) | System |
-| Restrictive tie ruling (tie goes to the form, no +2) | System, via a `>=` comparison |
-| Untamed form's +2 status bonus on the own-modifier branch | System |
-| Handwrap potency riding the substituted modifier | System |
-| Striking runes correctly **not** increasing form damage dice | System |
-| Ghost touch reaching form strikes | System |
-| Metal Strikes granting cold iron and silver in form | System |
-| Sneak attack's qualification gate (agile or finesse only, so jaws never qualify) | System |
-| Multiple attack penalty, conditions, IWR, circumstance and status bonuses | System |
+- Form statistics and their scaling by spell rank, including AC, skills and temporary hit points
+- Senses, speeds and creature size
+- Speed stacking, so Incredible Movement's +10 on a form granting 40 feet produces 50
+- The restrictive tie, where a tie between your modifier and the form's goes to the form, expressed as a `>=` comparison
+- Untamed form's +2 status bonus, applied on the own-modifier branch only
+- Handwrap potency riding the substituted modifier
+- Striking runes correctly **not** increasing the form's damage dice
+- Ghost touch reaching form strikes
+- Metal Strikes granting cold iron and silver in form
+- Sneak attack's qualification gate, which accepts agile or finesse attacks only, so jaws never qualify
+- The multiple attack penalty, conditions, immunities, weaknesses and resistances, and circumstance and status bonuses
 
 Form attacks are ordinary strikes on the character sheet. There is nothing to click but the sheet.
 
@@ -56,10 +54,7 @@ The form's strikes then appear in the Attacks section of your sheet with the sys
 
 ### Tested against
 
-| Component | Version |
-| --- | --- |
-| Foundry VTT | Release 14 stable, build 365 |
-| PF2e system | 8.4.0 |
+Foundry VTT Release 14 stable, build 365, with PF2e system 8.4.0.
 
 The manifest declares a minimum of Foundry v11 inherited from upstream, but nothing below the versions above has been exercised. This module reads the system's `BattleForm` rule element structure, so a schema change on the PF2e side is the first thing to suspect if it stops working.
 
