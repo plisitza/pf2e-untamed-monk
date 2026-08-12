@@ -14,7 +14,7 @@ Gated on the actor having the **Untamed Form** feat (the legacy name "Wild Shape
 
 **2. Sneak attack in battle form.** The system deliberately strips extra damage dice from form strikes, in `BattleFormRuleElement#applyDamageExclusion`. That function spares any modifier whose predicate contains the literal string `"battle-form"`. The module injects the system's own sneak `DamageDice` with that one entry added, which simultaneously scopes the rule to battle form - so it cannot double with the system's rule outside form - and exempts it from the strip.
 
-Dice count and faces still read the actor flags the rogue machinery sets, so the ladder scales itself with level and feats.
+Dice count and faces still read the actor flags the rogue class sets, so the dice scale with level and feats on their own.
 
 Gated only on the actor having sneak attack - the class feature, Sneak Attacker, or Shadow Sneak Attack. **This gate is independent of the Dex one above**, so a Strength-based monk or a druid with a rogue archetype gets it too.
 
@@ -71,13 +71,13 @@ The manifest declares a minimum of Foundry v11 inherited from upstream, but noth
 
 ## Rule interpretations
 
-The comparison between your own modifier and the form's is the system's, not ours: it is potency-inclusive, and a tie goes to the form. Untamed form's +2 status bonus therefore applies only when your own unarmed attack modifier strictly exceeds the form's.
+The comparison between your own modifier and the form's is the system's, not this module's: it is potency-inclusive, and a tie goes to the form. Untamed form's +2 status bonus therefore applies only when your own unarmed attack modifier strictly exceeds the form's.
 
 Striking runes do not increase form damage dice. Property runes such as ghost touch do carry onto form attacks.
 
-**Metal Strikes carries too.** A monk of 9th level or higher has cold iron and silver on his form's attacks, applied at damage-roll time through the system's own `AdjustStrike`. This surprised us: it is not visible on the strike item at all, because materials are handed to the damage roll rather than written to the weapon, and it took reading the system source to establish. It needs nothing from this module.
+**Metal Strikes carries too.** A monk of 9th level or higher has cold iron and silver on the form's attacks, applied at damage-roll time through the system's own `AdjustStrike`. This is easy to miss, and easy to conclude the opposite of: the materials are handed to the damage roll rather than written to the weapon, so they appear nowhere on the strike item and confirming them means reading the system source. It needs nothing from this module.
 
-All of the above is the system's behaviour, and all of it was measured rather than inferred.
+All of the above is the system's behaviour rather than this module's, and all of it was verified by observation rather than inferred from documentation.
 
 ## Building from source
 

@@ -4,7 +4,8 @@
  *
  * WHAT THIS FILE EXISTS FOR
  * The PF2e system implements battle forms natively and, as of pf2e 8.4.0, already delivers
- * almost everything needed here: form statistics and scaling, senses, speeds, size,
+ * almost everything this module would otherwise have to do: form statistics and scaling,
+ * senses, speeds, size,
  * temp HP, handwrap potency riding the substituted modifier while striking correctly does
  * not, ghost touch, Metal Strikes, the untamed form +2 status bonus with its
  * `battle-form:own-attack-modifier` roll option, and sneak attack's qualification gate
@@ -27,8 +28,8 @@
  *      the literal string "battle-form". So the rule below is the system's own sneak
  *      DamageDice with that one entry added, which simultaneously scopes it to battle form
  *      (so it cannot double up with the system's rule outside form) and exempts it from the
- *      strip. Dice count and faces still ride the actor flags the rogue machinery sets, so
- *      the ladder scales itself.
+ *      strip. Dice count and faces still read the actor flags the rogue class sets, so the
+ *      dice scale with level and feats on their own.
  *
  * No rule element can rewrite another item's rule elements, hence a hook. Rewriting rather
  * than shipping forked copies of the form effects is deliberate: Paizo's data keeps arriving
@@ -66,8 +67,8 @@ function slugOf(item) {
  * modifier from Dex than from Strength. Proficiency and potency are identical under either
  * attribute, so the comparison reduces to the ability modifiers themselves.
  *
- * Gating on the build rather than on a named character means a second monk at the table is
- * handled correctly, and a Strength-based monk is left alone rather than silently nerfed.
+ * Gating on the build rather than on a specific character means any qualifying monk is
+ * handled, and a Strength-based monk is left alone rather than silently weakened.
  */
 function qualifiesForDex(actor) {
     if (actor?.type !== "character") return false;
@@ -89,11 +90,11 @@ const SNEAK_ITEMS = new Set(["sneak-attack", "sneak-attacker", "shadow-sneak-att
  * Gate for the sneak injection: the actor actually has sneak attack.
  *
  * DO NOT gate this on `actor.flags.system.sneakAttackDamage`. Those flags are DERIVED - the
- * rogue machinery writes them with ActiveEffectLike during data preparation - and inside a
+ * rogue class writes them with ActiveEffectLike during data preparation - and inside a
  * document-creation transaction the actor can be reset and re-prepared, so at preCreateItem
- * time they are not reliably present. Observed 2026-08-12: a probe read {number:1, faces:6}
- * off a settled actor moments before this hook read the same path as undefined and silently
- * skipped the injection.
+ * time they are not reliably present. Observed in testing: the flags read
+ * {number: 1, faces: 6} on a settled actor, while this hook read the same path as undefined
+ * moments earlier in the same transaction and silently skipped the injection.
  *
  * Item presence is source data and is always there. The flags are still what supply the dice,
  * but they are resolved at damage-roll time, long after preparation has settled.
