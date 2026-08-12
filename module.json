@@ -3,17 +3,28 @@
     "title": "PF2e Untamed Monk — Shapeshifting Macros (Remaster)",
     "description": "Macros for PF2e battle forms under the Remaster: untamed form and slot-cast form spells, with correct own-modifier substitution (including Dex-based unarmed attacks) and MAP-aware form strikes. Maintained fork of drexl93/pf2e-shapeshifting.",
     "authors": [
-        { "name": "drexl93" },
-        { "name": "plisitza" }
+        {
+            "name": "drexl93"
+        },
+        {
+            "name": "plisitza"
+        }
     ],
-    "version": "7.0.1",
+    "version": "8.0.0-dev.1",
+    "esmodules": [
+        "scripts/untamed-monk.mjs"
+    ],
     "compatibility": {
         "minimum": "11",
         "verified": "14"
     },
     "relationships": {
         "systems": [
-            { "id": "pf2e", "type": "system", "compatibility": {} }
+            {
+                "id": "pf2e",
+                "type": "system",
+                "compatibility": {}
+            }
         ]
     },
     "packs": [
