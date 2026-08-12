@@ -1,12 +1,12 @@
 # PF2e Untamed Monk
 
-A small Foundry VTT module that applies one table's battle form rulings on top of the PF2e system's own implementation. It contains no macros, no compendium and no build step - just a single hook file.
+A small Foundry VTT module that applies two battle form interpretations on top of the PF2e system's own implementation. It contains no macros, no compendium and no build step - just a single hook file.
 
-This began as a fork of [drexl93/pf2e-shapeshifting](https://github.com/drexl93/pf2e-shapeshifting), which had been unsupported since 2020, and through v7.0.1 it carried that project's three macros forward. As of v8 almost none of that code is needed: the PF2e system now implements battle forms well enough that only two behaviours remain worth supplying. Full credit to drexl93, whose design carried this table for years. MIT licensed, as was the original.
+This began as a fork of [drexl93/pf2e-shapeshifting](https://github.com/drexl93/pf2e-shapeshifting), which had been unsupported since 2020, and through v7.0.1 it carried that project's three macros forward. As of v8 almost none of that code is needed: the PF2e system now implements battle forms well enough that only two behaviours remain worth supplying. Full credit to drexl93, whose design did the heavy lifting for years. MIT licensed, as was the original.
 
 ## What it does
 
-**1. Dex re-keying.** The system's form spell effects hardcode `ability: "str"` on every strike. This table rules that a monk substitutes his own unarmed attack modifier, which for a Dex-keyed monk is Dex based. The module rewrites `ability` to `dex` as a battle form effect lands on a qualifying actor.
+**1. Dex re-keying.** The system's form spell effects hardcode `ability: "str"` on every strike. A reading held by much of the community, and one I agree with, is that "if your unarmed attack modifier is higher, you can use it instead" means your own modifier as it appears on your sheet - Dexterity included - rather than a Strength-based recomputation of it. No form attack in the game carries the finesse trait, so under the other reading a Dex-keyed monk can never reach his real number. The module rewrites `ability` to `dex` as a battle form effect lands on a qualifying actor.
 
 Measured on a level 9 monk in Cat form: claw rolls +16 with `str` and +18 with `dex`.
 
@@ -16,7 +16,9 @@ Gated on the actor having the **Untamed Form** feat (the legacy name "Wild Shape
 
 Dice count and faces still read the actor flags the rogue machinery sets, so the ladder scales itself with level and feats.
 
-**This second behaviour is a table ruling, not RAW.** The system's exclusion is deliberate rather than an oversight. If your GM rules the other way, delete the `SNEAK_RULE` constant and its injection block.
+Gated only on the actor having sneak attack - the class feature, Sneak Attacker, or Shadow Sneak Attack. **This gate is independent of the Dex one above**, so a Strength-based monk or a druid with a rogue archetype gets it too.
+
+**This second behaviour is an interpretation, and a contested one.** The system's exclusion is deliberate rather than an oversight, and a reasonable GM may read the battle form rules as excluding precision damage outright. The argument for including it is that the restriction governs adjustments to the form's own statistics, while precision damage is a separate quantity with its own immunity rules - a creature immune to precision takes none of it while still taking the form's damage in full. If your GM rules the other way, delete the `SNEAK_RULE` constant and its injection block.
 
 ## What the system already does, and this module does not touch
 
@@ -64,12 +66,18 @@ The manifest declares a minimum of Foundry v11 inherited from upstream, but noth
 ## Known limitations
 
 - **No token image switching.** v7 derived a per-form token image from your token's filename. The system's battle forms do not do this, and reimplementing it would mean reintroducing the machinery this version exists to delete. If you want per-form art, set it manually or add a `TokenImage` rule element to your own copy of the form effect.
-- **Sneak attack in form is a table ruling.** See above.
+- **Sneak attack in form is a contested interpretation.** See above. Ask your GM before relying on it.
 - Humanoid Form and Anthropomorphic Shape are handled by the system or not at all; this module has no opinion on them.
 
 ## Rule interpretations
 
-The comparison between your own modifier and the form's is the system's, not ours: it is potency-inclusive, and a tie goes to the form. Untamed form's +2 status bonus therefore applies only when your own unarmed attack modifier strictly exceeds the form's. Striking runes do not increase form damage dice; property runes such as ghost touch do carry. All of that is the system's behaviour, and all of it was measured rather than inferred.
+The comparison between your own modifier and the form's is the system's, not ours: it is potency-inclusive, and a tie goes to the form. Untamed form's +2 status bonus therefore applies only when your own unarmed attack modifier strictly exceeds the form's.
+
+Striking runes do not increase form damage dice. Property runes such as ghost touch do carry onto form attacks.
+
+**Metal Strikes carries too.** A monk of 9th level or higher has cold iron and silver on his form's attacks, applied at damage-roll time through the system's own `AdjustStrike`. This surprised us: it is not visible on the strike item at all, because materials are handed to the damage roll rather than written to the weapon, and it took reading the system source to establish. It needs nothing from this module.
+
+All of the above is the system's behaviour, and all of it was measured rather than inferred.
 
 ## Building from source
 

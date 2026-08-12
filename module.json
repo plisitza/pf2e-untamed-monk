@@ -1,7 +1,7 @@
 {
     "id": "pf2e-untamed-monk",
     "title": "PF2e Untamed Monk",
-    "description": "Applies one table's Pathfinder 2e battle form rulings on top of the PF2e system's own implementation: Dex-keyed own-modifier substitution for monks, and sneak attack in battle form. No macros, no compendium. Descended from drexl93/pf2e-shapeshifting.",
+    "description": "Applies two Pathfinder 2e battle form interpretations on top of the PF2e system's own implementation: Dex-keyed own-modifier substitution for monks, and sneak attack on battle form strikes. No macros, no compendium. Descended from drexl93/pf2e-shapeshifting.",
     "authors": [
         {
             "name": "drexl93"
@@ -10,7 +10,7 @@
             "name": "plisitza"
         }
     ],
-    "version": "8.0.0",
+    "version": "8.1.0",
     "esmodules": [
         "scripts/untamed-monk.mjs"
     ],

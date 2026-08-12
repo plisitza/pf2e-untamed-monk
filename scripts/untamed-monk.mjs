@@ -1,21 +1,25 @@
 /**
- * pf2e-untamed-monk - table rulings applied on top of the PF2e system's own battle forms.
+ * pf2e-untamed-monk - two battle form interpretations applied on top of the PF2e system's
+ * own implementation.
  *
  * WHAT THIS FILE EXISTS FOR
  * The PF2e system implements battle forms natively and, as of pf2e 8.4.0, already delivers
- * almost everything this table needs: form statistics and scaling, senses, speeds, size,
+ * almost everything needed here: form statistics and scaling, senses, speeds, size,
  * temp HP, handwrap potency riding the substituted modifier while striking correctly does
  * not, ghost touch, Metal Strikes, the untamed form +2 status bonus with its
  * `battle-form:own-attack-modifier` roll option, and sneak attack's qualification gate
  * (which tags an agile or finesse form strike and correctly refuses jaws).
  *
- * Two things it does not do, and this module supplies both, by rewriting a battle form
- * effect's source as it lands on an eligible actor:
+ * Two things it does not do. This module supplies both by rewriting a battle form effect's
+ * source as it lands on the actor. The two are gated INDEPENDENTLY - an actor can qualify
+ * for either, both, or neither:
  *
  *   1. DEX RE-KEYING. The shipped form effects hardcode `ability: "str"` on every strike.
- *      This table rules that a monk substitutes his OWN unarmed attack modifier, which for
- *      a Dex-keyed monk is Dex-based. Measured on a level 9 monk in Cat form: claw rolls
- *      +16 with "str" and +18 with "dex".
+ *      A reading held by much of the community is that "if your unarmed attack modifier is
+ *      higher, you can use it instead" means the number on your sheet, Dexterity included.
+ *      No form attack carries the finesse trait, so the alternative reading leaves a
+ *      Dex-keyed monk unable to reach his real modifier. Measured on a level 9 monk in Cat
+ *      form: claw rolls +16 with "str" and +18 with "dex".
  *
  *   2. SNEAK ATTACK IN FORM. The system deliberately strips extra damage dice from battle
  *      form strikes in BattleFormRuleElement#applyDamageExclusion. That function classes a
@@ -34,8 +38,8 @@
 const MODULE_ID = "pf2e-untamed-monk";
 
 /** Feat slugs that qualify for Dex re-keying. `wild-shape` is the pre-remaster name,
- *  tolerated because the table allows legacy content and a hand-renamed feat is cheap
- *  to accept. */
+ *  accepted because some tables allow legacy content and a hand-renamed feat costs
+ *  nothing to tolerate. */
 const QUALIFYING_FEATS = new Set(["untamed-form", "wild-shape"]);
 
 /** The system's own sneak DamageDice, with "battle-form" added to the predicate.
@@ -118,35 +122,42 @@ Hooks.on("preCreateItem", (item) => {
         const rules = item._source?.system?.rules;
         if (!Array.isArray(rules) || !rules.some((r) => r?.key === "BattleForm")) return;
 
+        // The two gates are INDEPENDENT. They were coupled until 8.1.0, which meant sneak
+        // attack silently did nothing for a Strength-based monk or a druid - neither of whom
+        // has any bearing on which attribute keys a strike. Do not re-couple them.
         const dexEligible = qualifiesForDex(actor);
-        const sneakEligible = dexEligible && qualifiesForSneak(actor);
-        if (!dexEligible) return;
+        const sneakEligible = qualifiesForSneak(actor);
+        if (!dexEligible && !sneakEligible) return;
 
         const next = cloneRules(rules);
         let rekeyed = 0;
 
-        for (const rule of next) {
-            if (rule?.key !== "BattleForm") continue;
-            const strikes = rule.overrides?.strikes;
-            if (!strikes || typeof strikes !== "object") continue;
-            for (const strike of Object.values(strikes)) {
-                if (strike && typeof strike === "object" && strike.ability !== "dex") {
-                    strike.ability = "dex";
-                    rekeyed += 1;
+        if (dexEligible) {
+            for (const rule of next) {
+                if (rule?.key !== "BattleForm") continue;
+                const strikes = rule.overrides?.strikes;
+                if (!strikes || typeof strikes !== "object") continue;
+                for (const strike of Object.values(strikes)) {
+                    if (strike && typeof strike === "object" && strike.ability !== "dex") {
+                        strike.ability = "dex";
+                        rekeyed += 1;
+                    }
                 }
             }
         }
 
         // Idempotence guard: never stack a second copy if one is somehow already present.
         const hasSneak = next.some((r) => r?.slug === SNEAK_RULE.slug);
-        if (sneakEligible && !hasSneak) next.push(cloneRules([SNEAK_RULE])[0]);
+        const injected = sneakEligible && !hasSneak;
+        if (injected) next.push(cloneRules([SNEAK_RULE])[0]);
 
-        if (rekeyed > 0 || (sneakEligible && !hasSneak)) {
+        if (rekeyed > 0 || injected) {
             item.updateSource({ "system.rules": next });
-            console.log(
-                `${MODULE_ID} | ${actor.name} / "${item.name}": re-keyed ${rekeyed} strike(s) to Dex` +
-                    (sneakEligible && !hasSneak ? ", injected sneak attack dice" : ", no sneak attack on this actor")
-            );
+            const parts = [
+                rekeyed > 0 ? `re-keyed ${rekeyed} strike(s) to Dex` : "no Dex re-key (gate declined)",
+                injected ? "injected sneak attack dice" : "no sneak attack on this actor",
+            ];
+            console.log(`${MODULE_ID} | ${actor.name} / "${item.name}": ${parts.join(", ")}`);
         }
     } catch (err) {
         // Never let this break item creation. A silent miss is recoverable; a thrown hook
