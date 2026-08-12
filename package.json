@@ -3,12 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check-sync": "node check-sync.mjs",
-    "prebuild": "npm run check-sync",
-    "build": "node build.mjs",
-    "release": "npm run build && rm -f pf2e-untamed-monk.zip && zip -r pf2e-untamed-monk.zip module.json README.md LICENSE packs scripts"
-  },
-  "devDependencies": {
-    "@foundryvtt/foundryvtt-cli": "^3.0.0"
+    "release": "rm -f pf2e-untamed-monk.zip && zip -r pf2e-untamed-monk.zip module.json README.md LICENSE scripts"
   }
 }

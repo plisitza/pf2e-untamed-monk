@@ -1,24 +1,42 @@
-# PF2e Untamed Monk - Shapeshifting Macros (Remaster)
+# PF2e Untamed Monk
 
-Foundry VTT macros for playing battle forms in Pathfinder Second Edition (Remaster): the untamed form focus spell and the slot-cast form spells (animal form, aerial form, and the rest), with an attack roller that applies the correct attack modifier under the substitution rules, including Dex-based (finesse) unarmed attacks.
+A small Foundry VTT module that applies one table's battle form rulings on top of the PF2e system's own implementation. It contains no macros, no compendium and no build step - just a single hook file.
 
-This is a maintained fork of [drexl93/pf2e-shapeshifting](https://github.com/drexl93/pf2e-shapeshifting), which has been unsupported since 2020. Full credit to drexl93 for the original design and nearly all of the code. MIT licensed, as was the original.
+This began as a fork of [drexl93/pf2e-shapeshifting](https://github.com/drexl93/pf2e-shapeshifting), which had been unsupported since 2020, and through v7.0.1 it carried that project's three macros forward. As of v8 almost none of that code is needed: the PF2e system now implements battle forms well enough that only two behaviours remain worth supplying. Full credit to drexl93, whose design carried this table for years. MIT licensed, as was the original.
 
-## Why this fork exists
+## What it does
 
-The PF2e system's built-in battle form effects construct every form strike Strength-keyed and compare "your own attack modifier" against that Strength-based number. No form spell attack in the game carries the finesse trait, so a character whose best unarmed attack is Dex-based (a monk with finesse fists, for example) can never reach their real modifier through the system implementation.
+**1. Dex re-keying.** The system's form spell effects hardcode `ability: "str"` on every strike. This table rules that a monk substitutes his own unarmed attack modifier, which for a Dex-keyed monk is Dex based. The module rewrites `ability` to `dex` as a battle form effect lands on a qualifying actor.
 
-These macros implement the other reading of "if your unarmed attack modifier is higher, you can use it instead": the modifier being compared and substituted is your best unarmed attack modifier as it appears on your sheet, Dex and all. If your table rules it that way, this is, as far as we know, the only tooling that supports it.
+Measured on a level 9 monk in Cat form: claw rolls +16 with `str` and +18 with `dex`.
 
-## What you get
+Gated on the actor having the **Untamed Form** feat (the legacy name "Wild Shape" is also accepted) **and** gaining a higher unarmed modifier from Dexterity than from Strength. A Strength-based monk is left alone.
 
-Three macros in one compendium:
+**2. Sneak attack in battle form.** The system deliberately strips extra damage dice from form strikes, in `BattleFormRuleElement#applyDamageExclusion`. That function spares any modifier whose predicate contains the literal string `"battle-form"`. The module injects the system's own sneak `DamageDice` with that one entry added, which simultaneously scopes the rule to battle form - so it cannot double with the system's rule outside form - and exempts it from the strip.
 
-- **Untamed Form** - transform via the untamed form order spell (the spell once known as wild shape). Feat-gated form list (Insect Shape, Soaring Shape, Ferocious Shape, Elemental Shape, Plant Shape, Dragon Shape, Monstrosity Shape, True Shapeshifter), automatic rank selection (Auto = half level rounded up), token size and image switching, temp HP, speeds, skill adjustments, AC, and the own-modifier substitution with its +2 status bonus when your unarmed attack modifier strictly exceeds the form's. Click again to revert.
-- **Spell Shape** - the same treatment for slot-cast form spells. You choose the spell and the rank you are casting at. Substitution here is plain (no +2), again only when your modifier is strictly higher.
-- **Shape Strike** - the attack roller for whichever form you are in. Choose the attack, then First / Second / Third+ buttons apply the multiple attack penalty (agile-aware). Includes a Stunning Blows button that posts the monk feat's Fortitude prompt at your live class DC.
+Dice count and faces still read the actor flags the rogue machinery sets, so the ladder scales itself with level and feats.
 
-While transformed, use Shape Strike and only Shape Strike. The strikes on your character sheet are the system's battle form implementation and will roll different numbers.
+**This second behaviour is a table ruling, not RAW.** The system's exclusion is deliberate rather than an oversight. If your GM rules the other way, delete the `SNEAK_RULE` constant and its injection block.
+
+## What the system already does, and this module does not touch
+
+Verified empirically on PF2e 8.4.0 rather than assumed:
+
+| Behaviour | Handled by |
+| --- | --- |
+| Form statistics, scaling by rank, AC, skills, temp HP | System |
+| Senses, speeds, creature size | System |
+| Speed stacking (Incredible Movement +10 on a 40 ft form gives 50) | System |
+| Restrictive tie ruling (tie goes to the form, no +2) | System, via a `>=` comparison |
+| Untamed form's +2 status bonus on the own-modifier branch | System |
+| Handwrap potency riding the substituted modifier | System |
+| Striking runes correctly **not** increasing form damage dice | System |
+| Ghost touch reaching form strikes | System |
+| Metal Strikes granting cold iron and silver in form | System |
+| Sneak attack's qualification gate (agile or finesse only, so jaws never qualify) | System |
+| Multiple attack penalty, conditions, IWR, circumstance and status bonuses | System |
+
+Form attacks are ordinary strikes on the character sheet. There is nothing to click but the sheet.
 
 ## Installation
 
@@ -26,79 +44,40 @@ Paste this manifest URL into Foundry's Install Module dialog:
 
     https://raw.githubusercontent.com/plisitza/pf2e-untamed-monk/master/module.json
 
-Requires the PF2e system. No other module dependencies (the original's Furnace requirement is gone; modern Foundry runs async macros natively).
+Requires the PF2e system. No dependencies, no compendium to open, nothing to drag to a hotbar.
 
-Open the "Untamed Monk Macros" compendium and drag the macros to your hotbar.
+## Usage
+
+Cast **Untamed Form** (or any slot-cast form spell) from your character sheet, then drag the resulting effect from the spell listing onto the actor. Casting alone does not apply the effect - that is how the PF2e system works, not something this module changes.
+
+The form's strikes then appear in the Attacks section of your sheet with the system's own MAP buttons, and the module's adjustments are already applied. The console logs what it changed.
 
 ### Tested against
-
-v7.0.0 was developed and acceptance-tested on:
 
 | Component | Version |
 | --- | --- |
 | Foundry VTT | Release 14 stable, build 365 |
 | PF2e system | 8.4.0 |
 
-The manifest still declares a minimum of Foundry v11 as inherited from upstream, but nothing below the versions above has been exercised. PF2e moves its data schema often - two of the bugs fixed in this release were caused by schema changes, not by anything the module did - so if you are on an older system version and something misbehaves, that is the first thing to suspect.
-
-## Token images
-
-Form switching looks for an image whose filename is your token's filename with the form name appended before the extension:
-
-    Grizel.png       ->  GrizelCat.png, GrizelBear.png, GrizelAnkylosaurus.png
-
-Capitalisation must match the form name as it appears in the transform dialog. Put the files in the same folder as the original token image.
-
-This is deliberate: the module ships no creature art. Paizo's is not redistributable, and Foundry core's creature icons cover fewer than a quarter of the forms (and none of the dinosaurs or dragons). Deriving the filename instead lets you use whatever art you already own.
-
-**If no matching file exists, the token image is simply left alone.** Nothing breaks, and you can adopt the convention for a few favourite forms without providing all of them.
-
-## Changes from upstream (v7.0.0)
-
-- Remaster terminology throughout. Actors with the legacy "Wild Shape" feat still work; the feat gate accepts both eras' names. All other shape feat names are unchanged in the Remaster.
-- Data paths modernized: `actor.system`, `prototypeToken`, `texture.src`, `game.user.id`, `actor.items.contents`, and the Statistic API for skills.
-- Senses, resistances, weaknesses, **speeds and creature size** are now delivered through a single temporary Effect item carrying Sense / Resistance / Weakness / BaseSpeed / CreatureSize rule elements, created on transform and deleted on revert. Modern character sheets do not accept direct writes to any of those fields; this also means the changes show up as a visible effect icon, and revert restores your original values by simply removing the item rather than replaying a saved snapshot.
-- Spell Shape now implements own-modifier substitution for slot-cast form spells (strictly higher, no +2). Upstream computed the comparison value but never applied it.
-- Shape Strike gains the Stunning Blows button.
-- Compendium rebuilt as a LevelDB pack (NeDB support ended with Foundry v11). JSON sources live in packs-source/ and the pack is compiled by the build script.
-
-### PF2e 8.x compatibility fixes
-
-Three defects made the module non-functional on current PF2e. All three were schema changes on the system's side:
-
-- **Strike lookup.** The substitution logic located your unarmed attack by `action.name === "Fist"`. Modern PF2e does not populate `name` on strikes at all, so the lookup returned `undefined` and the transform threw partway through - leaving actors half-shifted, for every character, not just monks. It now resolves your best unarmed strike by item category.
-- **Speeds.** `system.attributes.speed` no longer exists, and `system.movement` is fully derived, so speeds cannot be written to an actor by any path. They are now granted as `BaseSpeed` rule elements.
-- **Token size.** PF2e re-derives token dimensions from the actor's size trait, silently reverting any direct write a frame later. Size is now granted as a `CreatureSize` rule element. This also fixes reverting a Small character, which previously left them Medium.
-
-## Rule interpretations
-
-The original's documented stances are retained: the substitution comparison ignores item bonuses (the conservative reading), striking runes do not modify form damage dice, form temp HP replaces existing temp HP, and item bonuses / armor check penalty do not apply to skills while transformed.
-
-Added stances in this fork, both ties-to-the-form:
-
-- Untamed form: "when you choose to use your own attack modifier ... you gain a +2 status bonus" applies only when your own unarmed attack modifier strictly exceeds the form's.
-- Slot-cast form spells: "if your unarmed attack bonus is higher, you can use it instead" is plain substitution, no bonus, again strictly higher.
-
-One consequence of granting speeds as rule elements is worth stating, because it changed behaviour: the form now sets your **base** speed, and typed modifiers you already have stack on top of it. A monk with Incredible Movement +10 in a form granting a 40-foot land speed moves 50, not 40. The battle form rules permit special statistics to be adjusted by circumstance bonuses, status bonuses and penalties, so this is the intended reading - but the previous version overwrote the value outright and would have shown 40.
+The manifest declares a minimum of Foundry v11 inherited from upstream, but nothing below the versions above has been exercised. This module reads the system's `BattleForm` rule element structure, so a schema change on the PF2e side is the first thing to suspect if it stops working.
 
 ## Known limitations
 
-- **Shape Strike does not apply any of your active modifiers.** Attack and damage are rolled from the form's own numbers, so conditions (frightened, sickened, off-guard), status bonuses like heroism, circumstance bonuses, and aid are all absent. The multiple attack penalty is the only one handled, via the First / Second / Third+ buttons. Adjust manually. Fixing this properly requires the form's attacks to become real system strikes, which is the planned direction for v8.
-- **Property runes are not carried onto form attacks.** Ghost touch and similar runes on Handwraps of Mighty Blows have no effect while transformed. Potency does reach the attack roll, but only indirectly, because it is already baked into the unarmed modifier being substituted.
-- Spell Shape does not check which form spells you actually know, or which ranks you can actually cast. Every spell and every legal rank is offered.
-- Humanoid form / Anthropomorphic Shape are not supported (no data for them, upstream or here).
-- Revert before ending a session. If a system update changes data structures while you are transformed, the stored originals may not restore cleanly. This was the original author's advice and it stands.
+- **No token image switching.** v7 derived a per-form token image from your token's filename. The system's battle forms do not do this, and reimplementing it would mean reintroducing the machinery this version exists to delete. If you want per-form art, set it manually or add a `TokenImage` rule element to your own copy of the form effect.
+- **Sneak attack in form is a table ruling.** See above.
+- Humanoid Form and Anthropomorphic Shape are handled by the system or not at all; this module has no opinion on them.
+
+## Rule interpretations
+
+The comparison between your own modifier and the form's is the system's, not ours: it is potency-inclusive, and a tie goes to the form. Untamed form's +2 status bonus therefore applies only when your own unarmed attack modifier strictly exceeds the form's. Striking runes do not increase form damage dice; property runes such as ghost touch do carry. All of that is the system's behaviour, and all of it was measured rather than inferred.
 
 ## Building from source
 
-    npm install
+There is no build. The module is `module.json` plus one file in `scripts/`.
+
     npm run release
 
-This compiles packs-source/ into the LevelDB pack and produces pf2e-untamed-monk.zip.
-
-The three macro sources are also mirrored as plain files in scripts/ for reading, diffing, and pasting directly into world macros. Only packs-source/ is compiled, so the two copies must be edited together; `npm run check-sync` (which the build runs automatically) fails the build if they drift apart.
-
-Note that Foundry holds a lock on the compiled pack while it is running. Quit Foundry before rebuilding, or the compile step will fail with `LEVEL_LOCKED`.
+only produces the distribution zip.
 
 ## Credits
 
