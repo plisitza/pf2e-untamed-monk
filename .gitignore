@@ -1,5 +1,8 @@
 node_modules/
+
+# Anchored deliberately. A bare `pf2e-untamed-monk` entry would also match any
+# directory of that name nested inside the repo, and this exists to catch a stray
+# self-referential symlink of the kind that was once committed here by accident.
 /pf2e-untamed-monk
-packs/**/LOG
-packs/**/LOG.old
-packs/**/LOCK
+
+.DS_Store

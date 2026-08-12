@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "release": "rm -f pf2e-untamed-monk.zip && zip -r pf2e-untamed-monk.zip module.json README.md LICENSE scripts"
+    "release": "rm -f pf2e-untamed-monk.zip && zip -r pf2e-untamed-monk.zip module.json README.md LICENSE scripts -x '*.DS_Store'"
   }
 }
