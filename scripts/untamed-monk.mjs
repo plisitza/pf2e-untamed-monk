@@ -1,6 +1,6 @@
 /**
- * pf2e-untamed-monk - two battle form interpretations applied on top of the PF2e system's
- * own implementation.
+ * pf2e-untamed-monk - battle form adjustments applied on top of the PF2e system's own
+ * implementation.
  *
  * WHAT THIS FILE EXISTS FOR
  * The PF2e system implements battle forms natively and, as of pf2e 8.4.0, already delivers
@@ -10,9 +10,9 @@
  * with its `battle-form:own-attack-modifier` roll option, and sneak attack's qualification
  * gate, which tags an agile or finesse form strike and correctly refuses jaws.
  *
- * Two things it does not do. This module supplies both by rewriting a battle form effect's
- * source as it lands on the actor. The two are gated INDEPENDENTLY - an actor can qualify
- * for either, both, or neither:
+ * Three things it does not do. This module supplies all three by rewriting a battle form
+ * effect's source as it lands on the actor. Each is gated INDEPENDENTLY - an actor can
+ * qualify for any, all, or none:
  *
  *   1. DEX RE-KEYING. The shipped form effects hardcode `ability: "str"` on every strike.
  *      A reading held by much of the community is that "if your unarmed attack modifier is
@@ -30,12 +30,20 @@
  *      strip. Dice count and faces still read the actor flags the rogue class sets, so the
  *      dice scale with level and feats on their own.
  *
+ *   3. TOKEN ART. The system changes everything about a battle form except what the token
+ *      looks like. See form-art.mjs, which owns the mapping and the art resolution chain.
+ *      This one is gated on nothing but the setting: which picture a token shows has no
+ *      bearing on anyone's build, so there is no reason to restrict it to qualifying actors.
+ *
  * No rule element can rewrite another item's rule elements, hence a hook. Rewriting rather
  * than shipping forked copies of the form effects is deliberate: Paizo's data keeps arriving
  * through system updates, and a fork would freeze this module out of their errata.
  */
 
+import { tokenArtRuleFor } from "./form-art.mjs";
+
 const MODULE_ID = "pf2e-untamed-monk";
+const TOKEN_ART_SETTING = "applyTokenArt";
 
 /** Feat slugs that qualify for Dex re-keying. `wild-shape` is the pre-remaster name,
  *  accepted because some tables allow legacy content and a hand-renamed feat costs
@@ -113,21 +121,51 @@ function cloneRules(rules) {
     return JSON.parse(JSON.stringify(rules));
 }
 
+/** Read the token art setting without assuming registration succeeded. */
+function tokenArtEnabled() {
+    try {
+        return game.settings.get(MODULE_ID, TOKEN_ART_SETTING) !== false;
+    } catch {
+        return true;
+    }
+}
+
+Hooks.once("init", () => {
+    game.settings.register(MODULE_ID, TOKEN_ART_SETTING, {
+        name: "Change token art in battle form",
+        hint:
+            "Sets a token's image to match the form it takes. Uses a bestiary token pack's art " +
+            "when one is installed, and falls back to a built-in icon when it is not. Turn this " +
+            "off to leave tokens alone.",
+        scope: "world",
+        config: true,
+        type: Boolean,
+        default: true,
+    });
+});
+
 Hooks.on("preCreateItem", (item) => {
     try {
         const actor = item?.parent;
         if (actor?.documentName !== "Actor") return;
 
         // Read _source, not the prepared document: this edits what is about to be written.
-        const rules = item._source?.system?.rules;
+        const source = item._source;
+        const rules = source?.system?.rules;
         if (!Array.isArray(rules) || !rules.some((r) => r?.key === "BattleForm")) return;
 
-        // The two gates are INDEPENDENT. They were coupled until 8.1.0, which meant sneak
-        // attack silently did nothing for a Strength-based monk or a druid - neither of whom
-        // has any bearing on which attribute keys a strike. Do not re-couple them.
+        // The two stat gates are INDEPENDENT of each other. They were coupled until 8.1.0,
+        // which meant sneak attack silently did nothing for a Strength-based monk or a druid -
+        // neither of whom has any bearing on which attribute keys a strike. Do not re-couple
+        // them. Token art is independent of both and gated on the setting alone.
         const dexEligible = qualifiesForDex(actor);
         const sneakEligible = qualifiesForSneak(actor);
-        if (!dexEligible && !sneakEligible) return;
+        const art = tokenArtEnabled() ? tokenArtRuleFor(source, rules) : null;
+
+        if (!dexEligible && !sneakEligible && !art?.rule) {
+            if (art?.miss) console.log(`${MODULE_ID} | no art resolved for ${art.miss}`);
+            return;
+        }
 
         const next = cloneRules(rules);
         let rekeyed = 0;
@@ -151,14 +189,15 @@ Hooks.on("preCreateItem", (item) => {
         const injected = sneakEligible && !hasSneak;
         if (injected) next.push(cloneRules([SNEAK_RULE])[0]);
 
-        if (rekeyed > 0 || injected) {
-            item.updateSource({ "system.rules": next });
-            const parts = [
-                rekeyed > 0 ? `re-keyed ${rekeyed} strike(s) to Dex` : "no Dex re-key (gate declined)",
-                injected ? "injected sneak attack dice" : "no sneak attack on this actor",
-            ];
-            console.log(`${MODULE_ID} | ${actor.name} / "${item.name}": ${parts.join(", ")}`);
-        }
+        if (art?.rule) next.push({ ...art.rule });
+
+        item.updateSource({ "system.rules": next });
+        const parts = [
+            rekeyed > 0 ? `re-keyed ${rekeyed} strike(s) to Dex` : "no Dex re-key (gate declined)",
+            injected ? "injected sneak attack dice" : "no sneak attack on this actor",
+            art?.rule ? `token art from ${art.from}` : "no token art",
+        ];
+        console.log(`${MODULE_ID} | ${actor.name} / "${item.name}": ${parts.join(", ")}`);
     } catch (err) {
         // Never let this break item creation. A silent miss is recoverable; a thrown hook
         // during a transform is not.
@@ -167,5 +206,5 @@ Hooks.on("preCreateItem", (item) => {
 });
 
 Hooks.once("ready", () => {
-    console.log(`${MODULE_ID} | ready - Dex re-keying and battle-form sneak attack active`);
+    console.log(`${MODULE_ID} | ready - Dex re-keying, battle-form sneak attack and token art active`);
 });

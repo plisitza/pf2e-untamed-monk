@@ -1,8 +1,8 @@
 # PF2e Untamed Monk
 
-A small Foundry VTT module that applies two battle form interpretations on top of the PF2e system's own implementation. It contains no macros, no compendium and no build step - just a single hook file.
+A small Foundry VTT module that adjusts three things about PF2e battle forms, on top of the system's own implementation. It contains no macros, no compendium and no build step - just two script files.
 
-This began as a fork of [drexl93/pf2e-shapeshifting](https://github.com/drexl93/pf2e-shapeshifting), which had been unsupported since 2020, and through v7.0.1 it carried that project's three macros forward. As of v8 almost none of that code is needed: the PF2e system now implements battle forms well enough that only two behaviours remain worth supplying. Full credit to drexl93, whose design did the heavy lifting for years. MIT licensed, as was the original.
+This began as a fork of [drexl93/pf2e-shapeshifting](https://github.com/drexl93/pf2e-shapeshifting), which had been unsupported since 2020, and through v7.0.1 it carried that project's three macros forward. As of v8 almost none of that code is needed: the PF2e system now implements battle forms well enough that only a few behaviours remain worth supplying. Full credit to drexl93, whose design did the heavy lifting for years. MIT licensed, as was the original.
 
 ## What it does
 
@@ -19,6 +19,18 @@ Dice count and faces still read the actor flags the rogue class sets, so the dic
 Gated only on the actor having sneak attack - the class feature, Sneak Attacker, or Shadow Sneak Attack. **This gate is independent of the Dex one above**, so a Strength-based monk or a druid with a rogue archetype gets it too.
 
 **This second behaviour is an interpretation, and a contested one.** The system's exclusion is deliberate rather than an oversight, and a reasonable GM may read the battle form rules as excluding precision damage outright. The argument for including it is that the restriction governs adjustments to the form's own statistics, while precision damage is a separate quantity with its own immunity rules - a creature immune to precision takes none of it while still taking the form's damage in full. If your GM rules the other way, delete the `SNEAK_RULE` constant and its injection block.
+
+**3. Token art.** The system changes everything about a battle form except what the token looks like, despite shipping a `TokenImage` rule element for exactly that job. The module injects one as the effect lands, and removing the effect reverts the token without any teardown code.
+
+Where the picture comes from depends on what is installed, in this order:
+
+1. A bestiary token pack, if the server has one. The system's compendium creatures ship with no art at all; Paizo sells it separately, and any module that registers art through the `pf2e-art` mechanism will be found and used. This is the good case, and it needs no configuration.
+2. A hand-picked icon that ships with Foundry, for the handful of forms whose own icon is misleading.
+3. The form effect's own icon, which is what Paizo already chose for it.
+
+The third step carries most of the work. Every battle form effect has an image, and for nearly every spell it is already correct, so this module does not maintain a table of them and a newly published form spell will render sensibly the day it arrives. The second step exists because all thirteen Animal Form variants ship with the same picture of a wolf, along with two other spells that ship one effect for several choices. Those get overridden; nothing else does.
+
+Without a token pack the fallback art is icon-style rather than top-down token art, and where no honest likeness exists in Foundry's libraries the form takes a paw print rather than a picture of the wrong animal. Turn the whole thing off under **Configure Settings** if you would rather your tokens never changed.
 
 ## What the system already does, and this module does not touch
 
@@ -50,7 +62,7 @@ Requires the PF2e system. No dependencies, no compendium to open, nothing to dra
 
 Cast **Untamed Form** (or any slot-cast form spell) from your character sheet, then drag the resulting effect from the spell listing onto the actor. Casting alone does not apply the effect - that is how the PF2e system works, not something this module changes.
 
-The form's strikes then appear in the Attacks section of your sheet with the system's own MAP buttons, and the module's adjustments are already applied. The console logs what it changed.
+The form's strikes then appear in the Attacks section of your sheet with the system's own MAP buttons, the token art changes if the form is one the module has a picture for, and the module's adjustments are already applied. The console logs what it changed and where the art came from.
 
 ### Tested against
 
@@ -60,7 +72,8 @@ The manifest declares a minimum of Foundry v11 inherited from upstream, but noth
 
 ## Known limitations
 
-- **No token image switching.** v7 derived a per-form token image from your token's filename. The system's battle forms do not do this, and reimplementing it would mean reintroducing the machinery this version exists to delete. If you want per-form art, set it manually or add a `TokenImage` rule element to your own copy of the form effect.
+- **Token art is only as good as what is installed.** With a bestiary token pack the module uses real creature art. Without one it falls back to icons that ship with Foundry, which are illustrations rather than tokens and look like it. Several forms - ape, seal, crocodile, orca among them - have no likeness anywhere in Foundry's libraries and take a generic paw print instead.
+- **No dinosaur art exists** in a stock install, so all six Dinosaur Form variants share the spell's own glyph.
 - **Sneak attack in form is a contested interpretation.** See above. Ask your GM before relying on it.
 - Humanoid Form and Anthropomorphic Shape are handled by the system or not at all; this module has no opinion on them.
 
@@ -76,7 +89,7 @@ All of the above is the system's behaviour rather than this module's, and all of
 
 ## Building from source
 
-There is no build. The module is `module.json` plus one file in `scripts/`.
+There is no build. The module is `module.json` plus two files in `scripts/`: the hook itself, and the battle form art table it imports.
 
     npm run release
 

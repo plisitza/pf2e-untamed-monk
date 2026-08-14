@@ -10,7 +10,7 @@
             "name": "plisitza"
         }
     ],
-    "version": "8.1.2",
+    "version": "8.2.0",
     "esmodules": [
         "scripts/untamed-monk.mjs"
     ],
