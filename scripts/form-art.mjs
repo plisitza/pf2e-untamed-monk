@@ -171,23 +171,76 @@ function artKeysFor(source) {
 }
 
 /**
- * Steps 1 and 2 for one creature UUID. Returns `{src, scale}` or null.
+ * Steps 1 and 2 for one creature UUID. Returns `{src, scale, from}` or null.
  *
- * `game.compendiumArt` is core Foundry's mapping and its exact return shape is treated
- * defensively here: a string and an object with `img` are both accepted, because the system's
- * own compendium browser reads `.actor` off it while nothing in the system reads `.token`.
+ * The two sources have different shapes, both confirmed by inspection rather than guessed.
+ *
+ * Core's `game.compendiumArt` entry, as registered by the Paizo token packs:
+ *   { actor, img, credit, token: { texture: {src, scaleX, scaleY},
+ *                                  ring: {enabled, subject: {texture, scale}} } }
+ *
+ * The system's legacy `moduleArt.map` entry, from a module using the `pf2e-art` flag:
+ *   { img, prototypeToken: { texture: {src, scaleX, scaleY} } }
+ *
+ * `token` is also tolerated as a bare string, which the system's own art-map validator
+ * permits for the legacy mechanism.
+ *
+ * THE RING SUBJECT IS FORWARDED, BUT ONLY FOR ACTORS ALREADY USING A RING.
+ *
+ * The packs ship two images per creature. `assets/tokens/...` is framed - an ornate border
+ * around the art, meant to be the whole token. `assets/subjects/...` is the same creature
+ * with no border on transparency, meant to sit inside a dynamic ring. Verified by rendering
+ * both side by side rather than inferred from the file names.
+ *
+ * A dynamic ring draws its SUBJECT texture, not `texture.src`, and falls back to `texture.src`
+ * when no subject resolves. So on a ring-using token, replacing only the texture makes the
+ * ring draw the FRAMED art inside the ring: a frame within a frame. Observed on Giant Crab
+ * and Moose. Supplying the subject fixes it.
+ *
+ * It cannot simply be forwarded always, because TokenDocumentPF2e sets `this.ring.enabled =
+ * true` unconditionally whenever an override carries a ring, which would switch dynamic rings
+ * on for tables that do not use them. Hence `wantsRing`: the actor's own token decides, and no
+ * setting is needed.
+ *
+ * History, so this is not re-litigated: this handling was added, removed on the strength of a
+ * screenshot that appeared to show the texture swap alone working, and restored when the
+ * removal produced the doubled frames. The screenshot that prompted the removal was of a run
+ * WITH this code in place. Check which build a screenshot came from before acting on it.
  */
 function packArt(uuid) {
     if (!uuid) return null;
 
-    const core = game.compendiumArt?.get?.(uuid);
-    const coreToken = typeof core?.token === "string" ? core.token : (core?.token?.img ?? null);
-    if (coreToken) return { src: coreToken, scale: core?.token?.scale, from: "compendium art" };
+    const core = game.compendiumArt?.get?.(uuid)?.token;
+    if (typeof core === "string") return { src: core, from: "compendium art" };
+    if (core?.texture?.src) {
+        return {
+            src: core.texture.src,
+            scale: core.texture.scaleX,
+            ring: core.ring?.subject?.texture
+                ? { texture: core.ring.subject.texture, scale: core.ring.subject.scale }
+                : null,
+            from: "compendium art",
+        };
+    }
 
     const texture = game.pf2e?.system?.moduleArt?.map?.get(uuid)?.prototypeToken?.texture;
     if (texture?.src) return { src: texture.src, scale: texture.scaleX, from: "token pack" };
 
     return null;
+}
+
+/**
+ * Does this actor draw its tokens with a dynamic ring? The prototype answers for actors with
+ * no token on a scene; placed tokens are consulted too, because a token can be configured away
+ * from its prototype. `getActiveTokens` needs a canvas, so it is guarded rather than assumed.
+ */
+function wantsRing(actor) {
+    if (actor?.prototypeToken?.ring?.enabled) return true;
+    try {
+        return (actor?.getActiveTokens?.() ?? []).some((t) => t?.document?.ring?.enabled === true);
+    } catch {
+        return false;
+    }
 }
 
 /** A default icon is not art. Never copy one onto a token. */
@@ -200,7 +253,7 @@ function usableImage(img) {
  * Returns null when the effect already carries a TokenImage of its own, which a user's
  * hand-edited copy legitimately might.
  */
-export function tokenArtRuleFor(source, existingRules) {
+export function tokenArtRuleFor(source, existingRules, actor) {
     if (existingRules.some((r) => r?.key === "TokenImage")) return null;
 
     const keys = artKeysFor(source);
@@ -228,6 +281,19 @@ export function tokenArtRuleFor(source, existingRules) {
     if (!art) return { miss: keys[0] };
 
     const rule = { key: "TokenImage", slug: TOKEN_ART_SLUG, value: art.src };
-    if (Number.isFinite(art.scale) && art.scale > 0) rule.scale = art.scale;
-    return { rule, from: art.from, key: keys[0] };
+
+    // Only carry a scale that actually does something. TokenDocumentPF2e sets
+    // `flags.pf2e.autoscale = false` whenever the override contains a scaleX, and autoscale is
+    // what resizes a token when a battle form changes creature size. Forwarding the token
+    // packs' scaleX of 1 would therefore disable size scaling in form in exchange for nothing.
+    if (Number.isFinite(art.scale) && art.scale > 0 && art.scale !== 1) rule.scale = art.scale;
+
+    // Ring subject art, only where the actor already draws with a ring. The schema floors
+    // subject scale at 0.8, so a smaller or missing value is clamped rather than rejected.
+    if (art.ring?.texture && wantsRing(actor)) {
+        const scale = Number(art.ring.scale);
+        rule.ring = { subject: { texture: art.ring.texture, scale: Number.isFinite(scale) ? Math.max(scale, 0.8) : 1 } };
+    }
+
+    return { rule, from: art.from + (rule.ring ? " with ring subject" : ""), key: keys[0] };
 }

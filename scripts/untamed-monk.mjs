@@ -160,7 +160,7 @@ Hooks.on("preCreateItem", (item) => {
         // them. Token art is independent of both and gated on the setting alone.
         const dexEligible = qualifiesForDex(actor);
         const sneakEligible = qualifiesForSneak(actor);
-        const art = tokenArtEnabled() ? tokenArtRuleFor(source, rules) : null;
+        const art = tokenArtEnabled() ? tokenArtRuleFor(source, rules, actor) : null;
 
         if (!dexEligible && !sneakEligible && !art?.rule) {
             if (art?.miss) console.log(`${MODULE_ID} | no art resolved for ${art.miss}`);
