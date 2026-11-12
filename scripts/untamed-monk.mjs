@@ -10,7 +10,7 @@
  * with its `battle-form:own-attack-modifier` roll option, and sneak attack's qualification
  * gate, which tags an agile or finesse form strike and correctly refuses jaws.
  *
- * Three things it does not do. This module supplies all three by rewriting a battle form
+ * Four things it does not do. This module supplies all four by rewriting a battle form
  * effect's source as it lands on the actor. Each is gated INDEPENDENTLY - an actor can
  * qualify for any, all, or none:
  *
@@ -35,15 +35,22 @@
  *      This one is gated on nothing but the setting: which picture a token shows has no
  *      bearing on anyone's build, so there is no reason to restrict it to qualifying actors.
  *
+ *   4. TOKEN SIZE ON PF2E 8.7.0. A system regression, not a design gap: 8.7.0 computes the
+ *      token's dimensions before BattleForm applies its size, so the actor turns Huge while the
+ *      token stays put (foundryvtt/pf2e#23652). See form-size.mjs. Gated on the running system
+ *      version and its own setting, so it can be switched off the day upstream fixes it.
+ *
  * No rule element can rewrite another item's rule elements, hence a hook. Rewriting rather
  * than shipping forked copies of the form effects is deliberate: Paizo's data keeps arriving
  * through system updates, and a fork would freeze this module out of their errata.
  */
 
 import { tokenArtRuleFor } from "./form-art.mjs";
+import { sizeRuleFor, systemNeedsSizeFix } from "./form-size.mjs";
 
 const MODULE_ID = "pf2e-untamed-monk";
 const TOKEN_ART_SETTING = "applyTokenArt";
+const FORM_SIZE_SETTING = "fixFormTokenSize";
 
 /** Feat slugs that qualify for Dex re-keying. `wild-shape` is the pre-remaster name,
  *  accepted because some tables allow legacy content and a hand-renamed feat costs
@@ -130,6 +137,18 @@ function tokenArtEnabled() {
     }
 }
 
+/** Whether the size fix applies: the setting is on AND the running system needs it. */
+function formSizeState() {
+    if (!systemNeedsSizeFix()) return { on: false, why: `not needed on pf2e ${game.system?.version}` };
+    let enabled = true;
+    try {
+        enabled = game.settings.get(MODULE_ID, FORM_SIZE_SETTING) !== false;
+    } catch {
+        enabled = true;
+    }
+    return enabled ? { on: true, why: "on" } : { on: false, why: "off (setting)" };
+}
+
 Hooks.once("init", () => {
     game.settings.register(MODULE_ID, TOKEN_ART_SETTING, {
         name: "Change token art in battle form",
@@ -137,6 +156,18 @@ Hooks.once("init", () => {
             "Sets a token's image to match the form it takes. Uses a bestiary token pack's art " +
             "when one is installed, and falls back to a built-in icon when it is not. Turn this " +
             "off to leave tokens alone.",
+        scope: "world",
+        config: true,
+        type: Boolean,
+        default: true,
+    });
+    game.settings.register(MODULE_ID, FORM_SIZE_SETTING, {
+        name: "Fix battle form token size (PF2e 8.7.0)",
+        hint:
+            "Works around a PF2e 8.7.0 bug where a battle form changes a character's size but " +
+            "not the token's (pf2e issue #23652). Only acts on PF2e 8.7.0 or later. Turn it off " +
+            "once the system fixes the bug. Turning it off affects forms applied afterwards; a form " +
+            "already in effect keeps the fix until it ends.",
         scope: "world",
         config: true,
         type: Boolean,
@@ -161,9 +192,11 @@ Hooks.on("preCreateItem", (item) => {
         const dexEligible = qualifiesForDex(actor);
         const sneakEligible = qualifiesForSneak(actor);
         const art = tokenArtEnabled() ? tokenArtRuleFor(source, rules, actor) : null;
+        const sized = formSizeState().on ? sizeRuleFor(source, rules) : null;
 
-        if (!dexEligible && !sneakEligible && !art?.rule) {
+        if (!dexEligible && !sneakEligible && !art?.rule && !sized?.rule) {
             if (art?.miss) console.log(`${MODULE_ID} | no art resolved for ${art.miss}`);
+            if (sized?.skip) console.log(`${MODULE_ID} | no size rule: ${sized.skip}`);
             return;
         }
 
@@ -190,12 +223,16 @@ Hooks.on("preCreateItem", (item) => {
         if (injected) next.push(cloneRules([SNEAK_RULE])[0]);
 
         if (art?.rule) next.push({ ...art.rule });
+        if (sized?.rule) next.push({ ...sized.rule });
 
         item.updateSource({ "system.rules": next });
         const parts = [
             rekeyed > 0 ? `re-keyed ${rekeyed} strike(s) to Dex` : "no Dex re-key (gate declined)",
             injected ? "injected sneak attack dice" : "no sneak attack on this actor",
             art?.rule ? `token art from ${art.from}` : "no token art",
+            sized?.rule
+                ? `token size ${sized.size} (level ${sized.level})`
+                : `no size rule${sized?.skip ? ` (${sized.skip})` : ""}`,
         ];
         console.log(`${MODULE_ID} | ${actor.name} / "${item.name}": ${parts.join(", ")}`);
     } catch (err) {
@@ -206,5 +243,8 @@ Hooks.on("preCreateItem", (item) => {
 });
 
 Hooks.once("ready", () => {
-    console.log(`${MODULE_ID} | ready - Dex re-keying, battle-form sneak attack and token art active`);
+    console.log(
+        `${MODULE_ID} | ready - Dex re-keying, battle-form sneak attack and token art active; ` +
+            `form size fix ${formSizeState().why}`,
+    );
 });

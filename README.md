@@ -1,6 +1,6 @@
 # PF2e Untamed Monk
 
-A small Foundry VTT module that adjusts three things about PF2e battle forms, on top of the system's own implementation. It contains no macros, no compendium and no build step - just two script files.
+A small Foundry VTT module that adjusts four things about PF2e battle forms, on top of the system's own implementation. It contains no macros, no compendium and no build step - just three script files.
 
 This began as a fork of [drexl93/pf2e-shapeshifting](https://github.com/drexl93/pf2e-shapeshifting), which had been unsupported since 2020, and through v7.0.1 it carried that project's three macros forward. As of v8 almost none of that code is needed: the PF2e system now implements battle forms well enough that only a few behaviours remain worth supplying. Full credit to drexl93, whose design did the heavy lifting for years. MIT licensed, as was the original.
 
@@ -32,12 +32,18 @@ The third step carries most of the work. Every battle form effect has an image, 
 
 Without a token pack the fallback art is icon-style rather than top-down token art, and where no honest likeness exists in Foundry's libraries the form takes a paw print rather than a picture of the wrong animal. Turn the whole thing off under **Configure Settings** if you would rather your tokens never changed.
 
+**4. Token size on PF2e 8.7.0.** This one works around a system bug rather than filling a gap. PF2e 8.7.0 works out a token's dimensions before a battle form applies its size, so the character turns Huge on the sheet while the token keeps its old footprint (reported as [pf2e#23652](https://github.com/foundryvtt/pf2e/issues/23652)). Enlarge and other ordinary size effects are unaffected, because they apply their size earlier.
+
+The module adds a normal `CreatureSize` rule element to the form effect, carrying the size the form would have set for the rank it was cast at, so the size lands early enough for the token to follow. The form's own late size change then finds nothing left to do. Removing the effect reverts the size, as before.
+
+It only acts on PF2e 8.7.0 or later; on earlier versions the system resized tokens correctly by itself. It has its own setting under **Configure Settings**, so it can be switched off once the system is fixed. A form already in effect when you change the setting keeps whatever it was created with until it ends.
+
 ## What the system already does, and this module does not touch
 
 All of the following is the PF2e system's own work. This module does not implement, override or interfere with any of it. Each was confirmed by observation on PF2e 8.4.0 rather than taken from documentation.
 
 - Form statistics and their scaling by spell rank, including AC, skills and temporary hit points
-- Senses, speeds and creature size
+- Senses, speeds and creature size (but see 4 above: on PF2e 8.7.0 the token no longer follows the form's size by itself)
 - Speed stacking, so Incredible Movement's +10 on a form granting 40 feet produces 50
 - The restrictive tie, where a tie between your modifier and the form's goes to the form, expressed as a `>=` comparison
 - Untamed form's +2 status bonus, applied on the own-modifier branch only
@@ -66,7 +72,7 @@ The form's strikes then appear in the Attacks section of your sheet with the sys
 
 ### Tested against
 
-Foundry VTT Release 14 stable, build 365, with PF2e system 8.4.0.
+Foundry VTT Release 14 stable, build 365, with PF2e system 8.4.0 and 8.7.0.
 
 The manifest declares a minimum of Foundry v11 inherited from upstream, but nothing below the versions above has been exercised. This module reads the system's `BattleForm` rule element structure, so a schema change on the PF2e side is the first thing to suspect if it stops working.
 
@@ -75,6 +81,8 @@ The manifest declares a minimum of Foundry v11 inherited from upstream, but noth
 - **Token art is only as good as what is installed.** With a bestiary token pack the module uses real creature art. Without one it falls back to icons that ship with Foundry, which are illustrations rather than tokens and look like it. Several forms - ape, seal, crocodile, orca among them - have no likeness anywhere in Foundry's libraries and take a generic paw print instead.
 - **No dinosaur art exists** in a stock install, so all six Dinosaur Form variants share the spell's own glyph.
 - **Sneak attack in form is a contested interpretation.** See above. Ask your GM before relying on it.
+- **The size workaround applies only to forms cast after the module is installed or updated.** A form already in effect when you update keeps its old behaviour; end it and cast it again.
+- **In form on 8.7.0 the character gains the `self:size` roll option for the form's size.** Stock PF2e never set it, because the form's size arrived after roll options were written. Nothing in the core rules keys off it that would change a result, but it is a difference.
 - Humanoid Form and Anthropomorphic Shape are handled by the system or not at all; this module has no opinion on them.
 
 ## Rule interpretations
